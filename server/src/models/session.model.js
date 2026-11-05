@@ -10,9 +10,8 @@ const sessionSchema = new mongoose.Schema(
         },
         refreshTokenHash: {
             type: String,
-            required: true,
-            unique: true,
             select: false,
+            default: null,
         },
         ip: {
             type: String,

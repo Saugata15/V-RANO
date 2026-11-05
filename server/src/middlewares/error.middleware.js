@@ -109,6 +109,7 @@ export const errorHandler = (err, _req, res, _next) => {
     message,
     errors,
   };
+  console.log(err);
 
   return res.status(statusCode).json(body);
 };

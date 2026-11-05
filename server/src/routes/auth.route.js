@@ -6,8 +6,10 @@ import { loginController, registerController } from "../controllers/auth.control
 
 const router = Router();
 
+// register via email and password
 router.post("/register", registerValidator, validate, asyncHandler(registerController));
 
+// login via email and password
 router.post("/login", loginValidator, validate, asyncHandler(loginController));
 
 export default router;

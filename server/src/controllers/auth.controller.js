@@ -1,8 +1,9 @@
-import { createSession, UpdateRefreshToken } from "../DAO/session.dao.js";
-import { createUser, findUserByEmail } from "../DAO/user.dao.js";
+import config from "../config/config.js";
+import { createSession, findActiveSession, isRefreshTokenValid, revokeSession, UpdateRefreshToken } from "../DAO/session.dao.js";
+import { comparePassword, createUser, findUserByEmail } from "../DAO/user.dao.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { AppError } from "../utils/AppError.js";
-import { signAccessToken, signRefreshToken } from "../utils/jwt.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
 
 export const refreshCookieOptions = {
     httpOnly: true,
@@ -14,7 +15,6 @@ export const refreshCookieOptions = {
 export const issueTokens = ({ userId, sessionId }) => {
     const accessToken = signAccessToken({ userId, sessionId });
     const refreshToken = signRefreshToken({ userId, sessionId });
-
     return { accessToken, refreshToken };
 };
 
@@ -114,3 +114,63 @@ export const loginController = async (req, res) => {
         accessToken,
     });
 };
+
+// refresh controller
+export const refreshController = async (req, res) => {
+    const token = req.cookies?.refreshToken;
+
+    if (!token) {
+        throw new AppError(401, "Refresh token missing");
+    };
+
+    let payload;
+
+    try {
+        payload = verifyRefreshToken(token);
+    } catch (error) {
+        res.clearCookie("refreshToken", refreshCookieOptions);
+
+        if (
+            error.name === "TokenExpiredError" ||
+            error.name === "JsonWebTokenError" ||
+            error.name === "NotBeforeError"
+        ) {
+            throw new AppError(401, "Invalid or expired refresh token");
+        }
+
+        throw error;
+    }
+
+    const { userId, sessionId } = payload;
+
+    const session = await findActiveSession({ userId, sessionId });
+
+    if (!session) {
+        res.clearCookie("refreshToken", refreshCookieOptions);
+
+        throw new AppError(401, "Session expired or revoked");
+    }
+
+    const isValidRefreshToken = isRefreshTokenValid({ session, token });
+
+    if (!isValidRefreshToken) {
+        await revokeSession(session._id);
+
+        res.clearCookie("refreshToken", refreshCookieOptions);
+
+        throw new AppError(401, "Invalid refresh token");
+    }
+
+    const { accessToken, refreshToken } = issueTokens({
+        userId,
+        sessionId: session._id,
+    });
+
+    await UpdateRefreshToken({ sessionId: session._id, refreshToken });
+
+    setRefreshCookie(res, refreshToken);
+
+    sendSuccess(res, 200, "Token refreshed", {
+        accessToken,
+    });
+}
