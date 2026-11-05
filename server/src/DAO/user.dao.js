@@ -17,3 +17,8 @@ export const createUser = async ({ name, email, password }) => {
 export const comparePassword = async ({ givenPassword, passwordHash }) => {
     return await bcrypt.compare(givenPassword, passwordHash);
 }
+
+export const findUserById = async (userId) => {
+    const user = await User.findById(userId);
+    return user;
+};

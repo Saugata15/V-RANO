@@ -27,7 +27,7 @@ export const findActiveSession = async ({ userId, sessionId }) => {
         user: userId,
         revoked: false,
         expiresAt: { $gt: new Date() },
-    });
+    }).select("+refreshTokenHash");
     return session;
 };
 

@@ -129,7 +129,7 @@ export const refreshController = async (req, res) => {
         payload = verifyRefreshToken(token);
     } catch (error) {
         res.clearCookie("refreshToken", refreshCookieOptions);
-
+        console.log(error);
         if (
             error.name === "TokenExpiredError" ||
             error.name === "JsonWebTokenError" ||
@@ -174,3 +174,63 @@ export const refreshController = async (req, res) => {
         accessToken,
     });
 }
+
+//logout controller
+export const logoutController = async (req, res) => {
+    const token = req.cookies?.refreshToken;
+
+    if (!token) {
+        throw new AppError(401, "Refresh token missing");
+    }
+
+    let payload;
+
+    try {
+        payload = verifyRefreshToken(token);
+    } catch (error) {
+        res.clearCookie("refreshToken", refreshCookieOptions);
+
+        if (
+            error.name === "TokenExpiredError" ||
+            error.name === "JsonWebTokenError" ||
+            error.name === "NotBeforeError"
+        ) {
+            throw new AppError(401, "Invalid or expired refresh token");
+        }
+
+        throw error;
+    }
+
+    const { userId, sessionId } = payload;
+
+    const session = await findActiveSession({ userId, sessionId });
+
+    if (!session) {
+        res.clearCookie("refreshToken", refreshCookieOptions);
+
+        throw new AppError(401, "Session expired or revoked");
+    }
+
+    const isValidRefreshToken = isRefreshTokenValid({ session, token });
+
+    if (!isValidRefreshToken) {
+        res.clearCookie("refreshToken", refreshCookieOptions);
+
+        throw new AppError(401, "Invalid refresh token");
+    }
+
+    await revokeSession(session._id);
+
+    res.clearCookie("refreshToken", refreshCookieOptions);
+
+    sendSuccess(res, 200, "User logged out successfully");
+};
+
+// me controller
+export const meController = async (req, res) => {
+    const user = req.user;
+
+    if (!user) throw new AppError(401, "Authentication required");
+
+    return sendSuccess(res, 200, "Current user", { user: toPublicUser(user) });
+};
