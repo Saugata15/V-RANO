@@ -11,11 +11,10 @@ export const signAccessToken = ({ userId, sessionId }) => {
     return accessToken;
 };
 
-export const signRefreshToken = ({ userId, sessionId }) => {
-    const refreshToken = jwt.sign({ userId, sessionId }, config.REFRESH_TOKEN_SECRET, {
-        expiresIn: REFRESH_TOKEN_EXPIRY,
+export const signRefreshToken = (payload, expiresIn = "7d") => {
+    return jwt.sign(payload, config.REFRESH_TOKEN_SECRET, {
+        expiresIn,
     });
-    return refreshToken;
 };
 
 export const verifyAccessToken = (accessToken) => {

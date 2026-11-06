@@ -11,6 +11,9 @@ const config = {
     ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET,
     REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET,
     NODE_ENV: process.env.NODE_ENV,
+    IMAGEKIT_PRIVATE_KEY: process.env.IMAGEKIT_PRIVATE_KEY,
+    IMAGEKIT_PUBLIC_KEY: process.env.IMAGEKIT_PUBLIC_KEY,
+    IMAGEKIT_URL_ENDPOINT: process.env.IMAGEKIT_URL_ENDPOINT,
 }
 
 export default config;

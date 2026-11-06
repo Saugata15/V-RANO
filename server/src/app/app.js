@@ -11,6 +11,12 @@ const app = express();
 app.use(cors({
     origin: config.CLIENT_URL,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "X-CSRF-Token",
+    ],
 }));
 app.use(express.json());
 app.use(cookieParser());

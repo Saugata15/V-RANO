@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import Session from "../models/session.model.js";
 
-export const createSession = async ({ userId, ip, userAgent }) => {
+export const createSession = async ({ userId, ip, userAgent, rememberMe = false }) => {
+    const sessionDuration = rememberMe
+        ? 30 * 24 * 60 * 60 * 1000
+        : 7 * 24 * 60 * 60 * 1000;
+
     const newSession = await Session.create({
         user: userId,
         ip,
         userAgent,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + sessionDuration),
     });
     return newSession;
 };

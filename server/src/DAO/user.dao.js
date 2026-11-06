@@ -19,6 +19,6 @@ export const comparePassword = async ({ givenPassword, passwordHash }) => {
 }
 
 export const findUserById = async (userId) => {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select("+avatarFileId");
     return user;
 };
