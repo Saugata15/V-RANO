@@ -1,353 +1,524 @@
 import config from "../config/config.js";
-import { createSession, findActiveSession, isRefreshTokenValid, revokeOtherSessions, revokeSession, UpdateRefreshToken } from "../DAO/session.dao.js";
-import { comparePassword, createUser, findUserByEmail, findUserByIdWithPassword, hashPassword, setUserPassword } from "../DAO/user.dao.js";
+import {
+  createSession,
+  findActiveSession,
+  isRefreshTokenValid,
+  revokeOtherSessions,
+  revokeSession,
+  UpdateRefreshToken,
+} from "../DAO/session.dao.js";
+import {
+  comparePassword,
+  createGoogleUser,
+  createUser,
+  findByGoogleId,
+  findUserByEmail,
+  findUserByIdWithPassword,
+  hashPassword,
+  setUserPassword,
+} from "../DAO/user.dao.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { AppError } from "../utils/AppError.js";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} from "../utils/jwt.js";
 import { deleteFile, uploadFile } from "../services/storage.services.js";
+import { createOAuthState } from "../DAO/oauthState.dao.js";
 
 export const refreshCookieOptions = (rememberMe = false) => ({
-    httpOnly: true,
-    secure: config.NODE_ENV === "production",
-    sameSite: config.NODE_ENV === "production" ? "none" : "strict",
-    maxAge: (rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000,
+  httpOnly: true,
+  secure: config.NODE_ENV === "production",
+  sameSite: config.NODE_ENV === "production" ? "none" : "strict",
+  maxAge: (rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000,
 });
 
 export const issueTokens = ({ userId, sessionId, rememberMe = false }) => {
-    const accessToken = signAccessToken({ userId, sessionId });
-    const refreshToken = signRefreshToken({ userId, sessionId, rememberMe }, rememberMe ? "30d" : "7d");
-    return { accessToken, refreshToken };
+  const accessToken = signAccessToken({ userId, sessionId });
+  const refreshToken = signRefreshToken(
+    { userId, sessionId, rememberMe },
+    rememberMe ? "30d" : "7d",
+  );
+  return { accessToken, refreshToken };
 };
 
 const setRefreshCookie = (res, refreshToken, rememberMe = false) => {
-    res.cookie(
-        "refreshToken",
-        refreshToken,
-        refreshCookieOptions(rememberMe)
-    );
+  res.cookie("refreshToken", refreshToken, refreshCookieOptions(rememberMe));
 };
 
 const toPublicUser = (user) => {
-    return {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        avatar: user.avatar,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-    };
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
 };
 
 // register via email and password
 export const registerController = async (req, res) => {
-    const { name, email, password } = req.body;
+  const { name, email, password } = req.body;
 
-    const existingUser = await findUserByEmail(email);
+  const existingUser = await findUserByEmail(email);
 
-    if (existingUser) {
-        throw new AppError(409, "Email already exists", [
-            { field: "email", message: "Email already registered" },
-        ]);
-    }
+  if (existingUser) {
+    throw new AppError(409, "Email already exists", [
+      { field: "email", message: "Email already registered" },
+    ]);
+  }
 
-    const newUser = await createUser({ name, email, password });
+  const newUser = await createUser({ name, email, password });
 
-    const newSession = await createSession({
-        userId: newUser._id,
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
-        rememberMe: false,
-    });
+  const newSession = await createSession({
+    userId: newUser._id,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+    rememberMe: false,
+  });
 
-    const { accessToken, refreshToken } = issueTokens({
-        userId: newUser._id,
-        sessionId: newSession._id,
-        rememberMe: false,
-    });
+  const { accessToken, refreshToken } = issueTokens({
+    userId: newUser._id,
+    sessionId: newSession._id,
+    rememberMe: false,
+  });
 
-    await UpdateRefreshToken({ sessionId: newSession._id, refreshToken });
+  await UpdateRefreshToken({ sessionId: newSession._id, refreshToken });
 
-    setRefreshCookie(res, refreshToken, false);
+  setRefreshCookie(res, refreshToken, false);
 
-    sendSuccess(res, 201, "User registered successfully", {
-        user: toPublicUser(newUser),
-        accessToken,
-    });
+  sendSuccess(res, 201, "User registered successfully", {
+    user: toPublicUser(newUser),
+    accessToken,
+  });
 };
 
 // login via email and password
 export const loginController = async (req, res) => {
-    const { email, password, rememberMe = false } = req.body;
+  const { email, password, rememberMe = false } = req.body;
 
-    const user = await findUserByEmail(email);
+  const user = await findUserByEmail(email);
 
-    if (!user || !user.passwordHash) {
-        throw new AppError(401, "Invalid email or password", [
-            { field: "email", message: "Invalid email or password" },
-            { field: "password", message: "Invalid email or password" },
-        ]);
-    }
+  if (!user || !user.passwordHash) {
+    throw new AppError(401, "Invalid email or password", [
+      { field: "email", message: "Invalid email or password" },
+      { field: "password", message: "Invalid email or password" },
+    ]);
+  }
 
-    const isPasswordMatched = await comparePassword({
-        givenPassword: password,
-        passwordHash: user.passwordHash
-    })
+  const isPasswordMatched = await comparePassword({
+    givenPassword: password,
+    passwordHash: user.passwordHash,
+  });
 
-    if (!isPasswordMatched) {
-        throw new AppError(401, "Invalid email or password", [
-            { field: "email", message: "Invalid email or password" },
-            { field: "password", message: "Invalid email or password" },
-        ]);
-    }
+  if (!isPasswordMatched) {
+    throw new AppError(401, "Invalid email or password", [
+      { field: "email", message: "Invalid email or password" },
+      { field: "password", message: "Invalid email or password" },
+    ]);
+  }
 
-    const newSession = await createSession({
-        userId: user._id,
-        ip: req.ip,
-        userAgent: req.headers["user-agent"],
-        rememberMe,
-    });
+  const newSession = await createSession({
+    userId: user._id,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+    rememberMe,
+  });
 
-    const { accessToken, refreshToken } = issueTokens({
-        userId: user._id,
-        sessionId: newSession._id,
-        rememberMe,
-    });
+  const { accessToken, refreshToken } = issueTokens({
+    userId: user._id,
+    sessionId: newSession._id,
+    rememberMe,
+  });
 
-    await UpdateRefreshToken({ sessionId: newSession._id, refreshToken });
+  await UpdateRefreshToken({ sessionId: newSession._id, refreshToken });
 
-    setRefreshCookie(res, refreshToken, rememberMe);
+  setRefreshCookie(res, refreshToken, rememberMe);
 
-    sendSuccess(res, 200, "User logged in successfully", {
-        user: toPublicUser(user),
-        accessToken,
-    });
+  sendSuccess(res, 200, "User logged in successfully", {
+    user: toPublicUser(user),
+    accessToken,
+  });
 };
 
 // refresh controller
 export const refreshController = async (req, res) => {
-    const token = req.cookies?.refreshToken;
+  const token = req.cookies?.refreshToken;
 
-    if (!token) {
-        throw new AppError(401, "Refresh token missing");
-    };
+  if (!token) {
+    throw new AppError(401, "Refresh token missing");
+  }
 
-    let payload;
+  let payload;
 
-    try {
-        payload = verifyRefreshToken(token);
-    } catch (error) {
-        res.clearCookie("refreshToken", refreshCookieOptions());
-        console.log(error);
-        if (
-            error.name === "TokenExpiredError" ||
-            error.name === "JsonWebTokenError" ||
-            error.name === "NotBeforeError"
-        ) {
-            throw new AppError(401, "Invalid or expired refresh token");
-        }
-
-        throw error;
+  try {
+    payload = verifyRefreshToken(token);
+  } catch (error) {
+    res.clearCookie("refreshToken", refreshCookieOptions());
+    console.log(error);
+    if (
+      error.name === "TokenExpiredError" ||
+      error.name === "JsonWebTokenError" ||
+      error.name === "NotBeforeError"
+    ) {
+      throw new AppError(401, "Invalid or expired refresh token");
     }
 
-    const { userId, sessionId } = payload;
+    throw error;
+  }
 
-    const session = await findActiveSession({ userId, sessionId });
+  const { userId, sessionId } = payload;
 
-    if (!session) {
-        res.clearCookie("refreshToken", refreshCookieOptions());
+  const session = await findActiveSession({ userId, sessionId });
 
-        throw new AppError(401, "Session expired or revoked");
-    }
+  if (!session) {
+    res.clearCookie("refreshToken", refreshCookieOptions());
 
-    const rememberMe = typeof payload.rememberMe === "boolean"
-        ? payload.rememberMe
-        : session.rememberMe ||
-          (new Date(session.expiresAt) - new Date(session.createdAt) > 8 * 24 * 60 * 60 * 1000);
+    throw new AppError(401, "Session expired or revoked");
+  }
 
-    const isValidRefreshToken = isRefreshTokenValid({ session, token });
+  const rememberMe =
+    typeof payload.rememberMe === "boolean"
+      ? payload.rememberMe
+      : session.rememberMe ||
+        new Date(session.expiresAt) - new Date(session.createdAt) >
+          8 * 24 * 60 * 60 * 1000;
 
-    if (!isValidRefreshToken) {
-        await revokeSession(session._id);
+  const isValidRefreshToken = isRefreshTokenValid({ session, token });
 
-        res.clearCookie("refreshToken", refreshCookieOptions());
-
-        throw new AppError(401, "Invalid refresh token");
-    }
-
-    const { accessToken, refreshToken } = issueTokens({
-        userId,
-        sessionId: session._id,
-        rememberMe
-    });
-
-    await UpdateRefreshToken({ sessionId: session._id, refreshToken });
-
-    setRefreshCookie(res, refreshToken, rememberMe);
-
-    sendSuccess(res, 200, "Token refreshed", {
-        accessToken,
-    });
-}
-
-//logout controller
-export const logoutController = async (req, res) => {
-    const token = req.cookies?.refreshToken;
-
-    if (!token) {
-        throw new AppError(401, "Refresh token missing");
-    }
-
-    let payload;
-
-    try {
-        payload = verifyRefreshToken(token);
-    } catch (error) {
-        res.clearCookie("refreshToken", refreshCookieOptions());
-
-        if (
-            error.name === "TokenExpiredError" ||
-            error.name === "JsonWebTokenError" ||
-            error.name === "NotBeforeError"
-        ) {
-            throw new AppError(401, "Invalid or expired refresh token");
-        }
-
-        throw error;
-    }
-
-    const { userId, sessionId } = payload;
-
-    const session = await findActiveSession({ userId, sessionId });
-
-    if (!session) {
-        res.clearCookie("refreshToken", refreshCookieOptions());
-
-        throw new AppError(401, "Session expired or revoked");
-    }
-
-    const isValidRefreshToken = isRefreshTokenValid({ session, token });
-
-    if (!isValidRefreshToken) {
-        res.clearCookie("refreshToken", refreshCookieOptions());
-
-        throw new AppError(401, "Invalid refresh token");
-    }
-
+  if (!isValidRefreshToken) {
     await revokeSession(session._id);
 
     res.clearCookie("refreshToken", refreshCookieOptions());
 
-    sendSuccess(res, 200, "User logged out successfully");
+    throw new AppError(401, "Invalid refresh token");
+  }
+
+  const { accessToken, refreshToken } = issueTokens({
+    userId,
+    sessionId: session._id,
+    rememberMe,
+  });
+
+  await UpdateRefreshToken({ sessionId: session._id, refreshToken });
+
+  setRefreshCookie(res, refreshToken, rememberMe);
+
+  sendSuccess(res, 200, "Token refreshed", {
+    accessToken,
+  });
+};
+
+//logout controller
+export const logoutController = async (req, res) => {
+  const token = req.cookies?.refreshToken;
+
+  if (!token) {
+    throw new AppError(401, "Refresh token missing");
+  }
+
+  let payload;
+
+  try {
+    payload = verifyRefreshToken(token);
+  } catch (error) {
+    res.clearCookie("refreshToken", refreshCookieOptions());
+
+    if (
+      error.name === "TokenExpiredError" ||
+      error.name === "JsonWebTokenError" ||
+      error.name === "NotBeforeError"
+    ) {
+      throw new AppError(401, "Invalid or expired refresh token");
+    }
+
+    throw error;
+  }
+
+  const { userId, sessionId } = payload;
+  const session = await findActiveSession({ userId, sessionId });
+
+  if (!session) {
+    res.clearCookie("refreshToken", refreshCookieOptions());
+    throw new AppError(401, "Session expired or revoked");
+  }
+
+  const isValidRefreshToken = isRefreshTokenValid({ session, token });
+
+  if (!isValidRefreshToken) {
+    res.clearCookie("refreshToken", refreshCookieOptions());
+    throw new AppError(401, "Invalid refresh token");
+  }
+
+  await revokeSession(session._id);
+  res.clearCookie("refreshToken", refreshCookieOptions());
+  sendSuccess(res, 200, "User logged out successfully");
 };
 
 // me controller
 export const meController = async (req, res) => {
-    const user = req.user;
+  const user = req.user;
 
-    if (!user) throw new AppError(401, "Authentication required");
-    return sendSuccess(res, 200, "Current user", { user: toPublicUser(user) });
+  if (!user) throw new AppError(401, "Authentication required");
+  return sendSuccess(res, 200, "Current user", { user: toPublicUser(user) });
 };
 
 // change password
 export const changePasswordController = async (req, res) => {
-    const { currentPassword, newPassword } = req.body;
-    const user = await findUserByIdWithPassword(req.user._id);
+  const { currentPassword, newPassword } = req.body;
+  const user = await findUserByIdWithPassword(req.user._id);
 
-    if (!user?.passwordHash) {
-        throw new AppError(409, "This account does not have a password. Sign in with Google to access it.");
-    }
+  if (!user?.passwordHash) {
+    throw new AppError(
+      409,
+      "This account does not have a password. Sign in with Google to access it.",
+    );
+  }
 
-    const matches = await comparePassword({
-        givenPassword: currentPassword,
-        passwordHash: user.passwordHash,
-    });
-    if (!matches) {
-        throw new AppError(401, "Current password is incorrect", [
-            { field: "currentPassword", message: "Current password is incorrect" },
-        ]);
-    }
-    if (currentPassword === newPassword) {
-        throw new AppError(400, "New password must differ from the current password", [
-            { field: "newPassword", message: "Choose a different password" },
-        ]);
-    }
+  const matches = await comparePassword({
+    givenPassword: currentPassword,
+    passwordHash: user.passwordHash,
+  });
+  if (!matches) {
+    throw new AppError(401, "Current password is incorrect", [
+      { field: "currentPassword", message: "Current password is incorrect" },
+    ]);
+  }
+  if (currentPassword === newPassword) {
+    throw new AppError(
+      400,
+      "New password must differ from the current password",
+      [{ field: "newPassword", message: "Choose a different password" }],
+    );
+  }
 
-    const passwordHash = await hashPassword(newPassword);
-    await setUserPassword({ user, passwordHash });
-    await revokeOtherSessions({ userId: req.user._id, currentSessionId: req.session._id });
+  const passwordHash = await hashPassword(newPassword);
+  await setUserPassword({ user, passwordHash });
+  await revokeOtherSessions({
+    userId: req.user._id,
+    currentSessionId: req.session._id,
+  });
 
-    const rememberMe = req.session.rememberMe ||
-        (new Date(req.session.expiresAt) - new Date(req.session.createdAt) > 8 * 24 * 60 * 60 * 1000);
-    const { accessToken, refreshToken } = issueTokens({
-        userId: req.user._id,
-        sessionId: req.session._id,
-        rememberMe,
-    });
-    await UpdateRefreshToken({ sessionId: req.session._id, refreshToken });
-    setRefreshCookie(res, refreshToken, rememberMe);
+  const rememberMe =
+    req.session.rememberMe ||
+    new Date(req.session.expiresAt) - new Date(req.session.createdAt) >
+      8 * 24 * 60 * 60 * 1000;
+  const { accessToken, refreshToken } = issueTokens({
+    userId: req.user._id,
+    sessionId: req.session._id,
+    rememberMe,
+  });
+  await UpdateRefreshToken({ sessionId: req.session._id, refreshToken });
+  setRefreshCookie(res, refreshToken, rememberMe);
 
-    return sendSuccess(res, 200, "Password changed successfully", { accessToken });
+  return sendSuccess(res, 200, "Password changed successfully", {
+    accessToken,
+  });
 };
 
 // extract image extention
 const getAvatarImageType = (file) => {
-    const { buffer, mimetype } = file;
-    const isJpeg = mimetype === "image/jpeg" && buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
-    const isPng = mimetype === "image/png" && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    const isWebp = mimetype === "image/webp" && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP";
+  const { buffer, mimetype } = file;
+  const isJpeg =
+    mimetype === "image/jpeg" &&
+    buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
+  const isPng =
+    mimetype === "image/png" &&
+    buffer
+      .subarray(0, 8)
+      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const isWebp =
+    mimetype === "image/webp" &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP";
 
-    if (isJpeg) return "jpg";
-    if (isPng) return "png";
-    if (isWebp) return "webp";
+  if (isJpeg) return "jpg";
+  if (isPng) return "png";
+  if (isWebp) return "webp";
 
-    throw new AppError(400, "Avatar must be a valid JPEG, PNG, or WebP image", [
-        { field: "avatar", message: "Unsupported or invalid image file" },
-    ]);
+  throw new AppError(400, "Avatar must be a valid JPEG, PNG, or WebP image", [
+    { field: "avatar", message: "Unsupported or invalid image file" },
+  ]);
 };
 
 // update avatar
 export const updateAvatarController = async (req, res) => {
-    if (!req.file) {
-        throw new AppError(400, "Avatar image is required", [
-            { field: "avatar", message: "Attach an image using the avatar field" },
-        ]);
-    }
+  if (!req.file) {
+    throw new AppError(400, "Avatar image is required", [
+      { field: "avatar", message: "Attach an image using the avatar field" },
+    ]);
+  }
 
-    const extension = getAvatarImageType(req.file);
-    const uploadedFile = await uploadFile({
-        buffer: req.file.buffer,
-        fileName: `avatar-${req.user._id}-${Date.now()}.${extension}`,
-    });
+  const extension = getAvatarImageType(req.file);
+  const uploadedFile = await uploadFile({
+    buffer: req.file.buffer,
+    fileName: `avatar-${req.user._id}-${Date.now()}.${extension}`,
+  });
 
-    if (!uploadedFile?.url || !uploadedFile?.fileId) {
-        throw new AppError(502, "Image service returned an invalid upload response");
-    }
+  if (!uploadedFile?.url || !uploadedFile?.fileId) {
+    throw new AppError(
+      502,
+      "Image service returned an invalid upload response",
+    );
+  }
 
-    const previousFileId = req.user.avatarFileId;
-    req.user.avatar = uploadedFile.url;
-    req.user.avatarFileId = uploadedFile.fileId;
+  const previousFileId = req.user.avatarFileId;
+  req.user.avatar = uploadedFile.url;
+  req.user.avatarFileId = uploadedFile.fileId;
 
+  try {
+    await req.user.save();
+  } catch (error) {
     try {
-        await req.user.save();
+      await deleteFile(uploadedFile.fileId);
+    } catch (cleanupError) {
+      console.error(
+        "Failed to clean up an uncommitted avatar upload:",
+        cleanupError,
+      );
+    }
+    throw error;
+  }
+
+  if (previousFileId) {
+    try {
+      await deleteFile(previousFileId);
     } catch (error) {
-        try {
-            await deleteFile(uploadedFile.fileId);
-        } catch (cleanupError) {
-            console.error("Failed to clean up an uncommitted avatar upload:", cleanupError);
-        }
-        throw error;
+      console.error(
+        "Failed to delete the previous avatar from ImageKit:",
+        error,
+      );
+    }
+  }
+
+  return sendSuccess(res, 200, "Avatar updated successfully", {
+    user: toPublicUser(req.user),
+  });
+};
+
+// login and register via passport and OAuth2.0
+export const googleAuthCallbackController = async (req, res) => {
+  const profile = req.user;
+
+  if (!profile.id) {
+    throw new AppError(401, "Google authentication failed");
+  }
+
+  const email = profile.emails?.[0].value?.trim().toLowerCase();
+  const emailVerified = profile._json?.email_verified === true;
+
+  console.log(email);
+  console.log(emailVerified);
+
+  if (!email || !emailVerified) {
+    throw new AppError(401, "A verified Google email is required");
+  }
+
+  let user = await findByGoogleId(profile.id);
+  console.log(user);
+
+  if (!user) {
+    const existingUser = await findUserByEmail(email);
+    console.log(existingUser);
+
+    if (existingUser) {
+      throw new AppError(
+        409,
+        "Email is already registered. Please log in with your existing method and link Google from your account settings.",
+      );
+    } else {
+      user = await createGoogleUser({
+        name: profile.displayName,
+        email,
+        googleId: profile.id,
+      });
+    }
+  }
+
+  const newSession = await createSession({
+    userId: user._id,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+    rememberMe: false,
+  });
+
+  const { accessToken, refreshToken } = issueTokens({
+    userId: user._id,
+    sessionId: newSession._id,
+    rememberMe: false,
+  });
+
+  await UpdateRefreshToken({ sessionId: newSession._id, refreshToken });
+
+  setRefreshCookie(res, refreshToken, false);
+
+  sendSuccess(res, 200, "User logged in successfully", {
+    user: toPublicUser(user),
+    accessToken,
+  });
+};
+
+export const startGoogleLinkController = async (req, res, next) => {
+  const userId = req.user._id;
+  const sessionId = req.session._id;
+  try {
+    // Generate state for the currently logged-in user
+    const state = await createOAuthState({ userId, sessionId });
+
+    // Start Google authentication
+    passport.authenticate("google", {
+      scope: ["profile", "email"],
+      session: false,
+      prompt: "select_account",
+      state,
+    })(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// google link callback
+export const googleLinkCallbackController = async (req, res) => {
+  const profile = req.user;
+
+  if (!profile.id) {
+    throw new AppError(401, "Google authentication failed");
+  }
+
+  const email = profile.emails?.[0]?.value?.trim().toLowerCase();
+  const emailVerified = profile._json?.email_verified === true;
+
+  if (!email || !emailVerified) {
+    throw new AppError(401, "A verified Google email is required");
+  }
+
+  const user = await findUserById(req.googleLinkUserId);
+
+  if (!user) {
+    throw new AppError(404, "User not found");
+  }
+
+  const existingGoogleUser = await findByGoogleId(profile.id);
+
+  if (existingGoogleUser) {
+    if (existingGoogleUser._id.equals(user._id)) {
+      throw new AppError(409, "Google account is already linked");
     }
 
-    if (previousFileId) {
-        try {
-            await deleteFile(previousFileId);
-        } catch (error) {
-            console.error("Failed to delete the previous avatar from ImageKit:", error);
-        }
-    }
+    throw new AppError(409, "This Google account is linked to another user");
+  }
 
-    return sendSuccess(res, 200, "Avatar updated successfully", {
-        user: toPublicUser(req.user),
-    });
+  if (user.googleId) {
+    throw new AppError(409, "Another Google account is already linked");
+  }
+
+  user.googleId = profile.id;
+  user.emailVerified = true;
+
+  await user.save();
+
+  sendSuccess(res, 200, "Google account linked successfully");
 };

@@ -1,3 +1,4 @@
+import { consumeOAuthState } from "../DAO/oauthState.dao.js";
 import { findActiveSession } from "../DAO/session.dao.js";
 import { findUserById } from "../DAO/user.dao.js";
 import { AppError } from "../utils/AppError.js";
@@ -40,3 +41,24 @@ export const requireAuth = async (req, res, next) => {
 
     next();
 }
+
+export const validateGoogleLinkState = async (req, res, next) => {
+    const record = await consumeOAuthState(req.query.state);
+
+    if (!record) {
+        throw new AppError(401, "Invalid or expired OAuth state");
+    }
+
+    const session = await findActiveSession({
+        userId: record.user,
+        sessionId: record.session,
+    });
+
+    if (!session) {
+        throw new AppError(401, "Your session has expired. Please log in again.");
+    }
+
+    req.googleLinkUserId = record.user;
+
+    next();
+};

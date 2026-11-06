@@ -5,6 +5,7 @@ import cors from 'cors';
 import config from '../config/config.js';
 import authRoutes from '../routes/auth.route.js';
 import { errorHandler } from '../middlewares/error.middleware.js';
+import passport from '../config/passport.js';
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(passport.initialize());
 
 app.use("/api/auth", authRoutes);
 

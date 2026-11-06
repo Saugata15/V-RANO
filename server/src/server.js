@@ -7,5 +7,5 @@ await connectDB();
 const port = config.PORT || 1234;
 
 app.listen(port, () => {
-    console.log(`Server is hosted ${port}`);
+    console.log(`Server is hosted on port ${port}`);
 })
