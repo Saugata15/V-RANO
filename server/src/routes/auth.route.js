@@ -1,9 +1,9 @@
 import { Router } from "express";
 import multer from "multer";
-import { loginValidator, registerValidator } from "../validators/auth.validator.js";
+import { changePasswordValidator, loginValidator, registerValidator } from "../validators/auth.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { loginController, logoutController, meController, refreshController, registerController, updateAvatarController } from "../controllers/auth.controller.js";
+import { changePasswordController, loginController, logoutController, meController, refreshController, registerController, updateAvatarController } from "../controllers/auth.controller.js";
 import { requireAuth } from "../middlewares/auth.middleware.js";
 import { AppError } from "../utils/AppError.js";
 
@@ -50,6 +50,9 @@ router.post("/logout", asyncHandler(logoutController));
 
 // profile route
 router.get("/me", asyncHandler(requireAuth), asyncHandler(meController));
+
+// Change password
+router.post("/change-password", asyncHandler(requireAuth), changePasswordValidator, validate, asyncHandler(changePasswordController));
 
 // Update avatar
 router.patch("/avatar", asyncHandler(requireAuth), parseAvatarUpload, asyncHandler(updateAvatarController));

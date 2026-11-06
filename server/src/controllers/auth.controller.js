@@ -1,6 +1,6 @@
 import config from "../config/config.js";
-import { createSession, findActiveSession, isRefreshTokenValid, revokeSession, UpdateRefreshToken } from "../DAO/session.dao.js";
-import { comparePassword, createUser, findUserByEmail } from "../DAO/user.dao.js";
+import { createSession, findActiveSession, isRefreshTokenValid, revokeOtherSessions, revokeSession, UpdateRefreshToken } from "../DAO/session.dao.js";
+import { comparePassword, createUser, findUserByEmail, findUserByIdWithPassword, hashPassword, setUserPassword } from "../DAO/user.dao.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { AppError } from "../utils/AppError.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt.js";
@@ -15,7 +15,7 @@ export const refreshCookieOptions = (rememberMe = false) => ({
 
 export const issueTokens = ({ userId, sessionId, rememberMe = false }) => {
     const accessToken = signAccessToken({ userId, sessionId });
-    const refreshToken = signRefreshToken({ userId, sessionId }, rememberMe ? "30d" : "7d");
+    const refreshToken = signRefreshToken({ userId, sessionId, rememberMe }, rememberMe ? "30d" : "7d");
     return { accessToken, refreshToken };
 };
 
@@ -150,7 +150,7 @@ export const refreshController = async (req, res) => {
         throw error;
     }
 
-    const { userId, sessionId, rememberMe = false } = payload;
+    const { userId, sessionId } = payload;
 
     const session = await findActiveSession({ userId, sessionId });
 
@@ -159,6 +159,11 @@ export const refreshController = async (req, res) => {
 
         throw new AppError(401, "Session expired or revoked");
     }
+
+    const rememberMe = typeof payload.rememberMe === "boolean"
+        ? payload.rememberMe
+        : session.rememberMe ||
+          (new Date(session.expiresAt) - new Date(session.createdAt) > 8 * 24 * 60 * 60 * 1000);
 
     const isValidRefreshToken = isRefreshTokenValid({ session, token });
 
@@ -241,10 +246,51 @@ export const meController = async (req, res) => {
     const user = req.user;
 
     if (!user) throw new AppError(401, "Authentication required");
-
     return sendSuccess(res, 200, "Current user", { user: toPublicUser(user) });
 };
 
+// change password
+export const changePasswordController = async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const user = await findUserByIdWithPassword(req.user._id);
+
+    if (!user?.passwordHash) {
+        throw new AppError(409, "This account does not have a password. Sign in with Google to access it.");
+    }
+
+    const matches = await comparePassword({
+        givenPassword: currentPassword,
+        passwordHash: user.passwordHash,
+    });
+    if (!matches) {
+        throw new AppError(401, "Current password is incorrect", [
+            { field: "currentPassword", message: "Current password is incorrect" },
+        ]);
+    }
+    if (currentPassword === newPassword) {
+        throw new AppError(400, "New password must differ from the current password", [
+            { field: "newPassword", message: "Choose a different password" },
+        ]);
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await setUserPassword({ user, passwordHash });
+    await revokeOtherSessions({ userId: req.user._id, currentSessionId: req.session._id });
+
+    const rememberMe = req.session.rememberMe ||
+        (new Date(req.session.expiresAt) - new Date(req.session.createdAt) > 8 * 24 * 60 * 60 * 1000);
+    const { accessToken, refreshToken } = issueTokens({
+        userId: req.user._id,
+        sessionId: req.session._id,
+        rememberMe,
+    });
+    await UpdateRefreshToken({ sessionId: req.session._id, refreshToken });
+    setRefreshCookie(res, refreshToken, rememberMe);
+
+    return sendSuccess(res, 200, "Password changed successfully", { accessToken });
+};
+
+// extract image extention
 const getAvatarImageType = (file) => {
     const { buffer, mimetype } = file;
     const isJpeg = mimetype === "image/jpeg" && buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
@@ -260,6 +306,7 @@ const getAvatarImageType = (file) => {
     ]);
 };
 
+// update avatar
 export const updateAvatarController = async (req, res) => {
     if (!req.file) {
         throw new AppError(400, "Avatar image is required", [

@@ -33,5 +33,22 @@ export const loginValidator = [
 
     body("password")
         .isString().withMessage("Password should be a string").bail()
-        .notEmpty().withMessage("Password is required")
-]
+        .notEmpty().withMessage("Password is required"),
+
+    body("rememberMe")
+        .optional()
+        .isBoolean().withMessage("Remember me must be a boolean").bail()
+        .toBoolean(),
+];
+
+export const changePasswordValidator = [
+    body("currentPassword")
+        .isString().withMessage("Current password should be a string").bail()
+        .notEmpty().withMessage("Current password is required"),
+        
+    body("newPassword")
+        .isString().withMessage("New password should be a string").bail()
+        .isLength({ min: 6 }).withMessage("New password must be at least 6 characters").bail()
+        .matches(/[A-Za-z]/).withMessage("New password must contain a letter").bail()
+        .matches(/\d/).withMessage("New password must contain a number"),
+];

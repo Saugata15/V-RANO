@@ -19,6 +19,10 @@ const sessionSchema = new mongoose.Schema(
         userAgent: {
             type: String,
         },
+        rememberMe: {
+            type: Boolean,
+            default: false,
+        },
         revoked: {
             type: Boolean,
             default: false,

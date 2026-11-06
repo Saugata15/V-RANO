@@ -10,6 +10,7 @@ export const createSession = async ({ userId, ip, userAgent, rememberMe = false 
         user: userId,
         ip,
         userAgent,
+        rememberMe,
         expiresAt: new Date(Date.now() + sessionDuration),
     });
     return newSession;
@@ -47,5 +48,12 @@ export const revokeSession = async (sessionId) => {
         { _id: sessionId, revoked: false },
         { $set: { revoked: true, refreshTokenHash: null } },
         { new: true },
+    );
+};
+
+export const revokeOtherSessions = async ({ userId, currentSessionId }) => {
+    await Session.updateMany(
+        { user: userId, _id: { $ne: currentSessionId }, revoked: false },
+        { $set: { revoked: true, refreshTokenHash: null } },
     );
 };
