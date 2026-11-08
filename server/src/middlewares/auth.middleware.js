@@ -42,6 +42,18 @@ export const requireAuth = async (req, res, next) => {
     next();
 }
 
+export const requireAdmin = (req, res, next) => {
+    if (!req.user) {
+        throw new AppError(401, "Authentication required");
+    }
+
+    if (req.user.role !== "admin") {
+        throw new AppError(403, "Admin access required");
+    }
+
+    next();
+};
+
 export const validateGoogleLinkState = async (req, res, next) => {
     const record = await consumeOAuthState(req.query.state);
 
