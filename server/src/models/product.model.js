@@ -34,6 +34,11 @@ const imageSchema = new mongoose.Schema(
             trim: true,
         },
 
+        fileId: {
+            type: String,
+            required: true,
+        },
+
         alt: {
             type: String,
             default: "",

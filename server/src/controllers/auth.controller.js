@@ -24,8 +24,9 @@ import {
   signRefreshToken,
   verifyRefreshToken,
 } from "../utils/jwt.js";
-import { deleteFile, uploadFile } from "../services/storage.services.js";
+import { deleteFile, uploadAvatarImage } from "../services/storage.services.js";
 import { createOAuthState } from "../DAO/oauthState.dao.js";
+import { generateFileName } from "../utils/file.utils.js";
 
 export const refreshCookieOptions = (rememberMe = false) => ({
   httpOnly: true,
@@ -184,8 +185,8 @@ export const refreshController = async (req, res) => {
     typeof payload.rememberMe === "boolean"
       ? payload.rememberMe
       : session.rememberMe ||
-        new Date(session.expiresAt) - new Date(session.createdAt) >
-          8 * 24 * 60 * 60 * 1000;
+      new Date(session.expiresAt) - new Date(session.createdAt) >
+      8 * 24 * 60 * 60 * 1000;
 
   const isValidRefreshToken = isRefreshTokenValid({ session, token });
 
@@ -305,7 +306,7 @@ export const changePasswordController = async (req, res) => {
   const rememberMe =
     req.session.rememberMe ||
     new Date(req.session.expiresAt) - new Date(req.session.createdAt) >
-      8 * 24 * 60 * 60 * 1000;
+    8 * 24 * 60 * 60 * 1000;
   const { accessToken, refreshToken } = issueTokens({
     userId: req.user._id,
     sessionId: req.session._id,
@@ -319,31 +320,6 @@ export const changePasswordController = async (req, res) => {
   });
 };
 
-// extract image extention
-const getAvatarImageType = (file) => {
-  const { buffer, mimetype } = file;
-  const isJpeg =
-    mimetype === "image/jpeg" &&
-    buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
-  const isPng =
-    mimetype === "image/png" &&
-    buffer
-      .subarray(0, 8)
-      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-  const isWebp =
-    mimetype === "image/webp" &&
-    buffer.toString("ascii", 0, 4) === "RIFF" &&
-    buffer.toString("ascii", 8, 12) === "WEBP";
-
-  if (isJpeg) return "jpg";
-  if (isPng) return "png";
-  if (isWebp) return "webp";
-
-  throw new AppError(400, "Avatar must be a valid JPEG, PNG, or WebP image", [
-    { field: "avatar", message: "Unsupported or invalid image file" },
-  ]);
-};
-
 // update avatar
 export const updateAvatarController = async (req, res) => {
   if (!req.file) {
@@ -352,10 +328,9 @@ export const updateAvatarController = async (req, res) => {
     ]);
   }
 
-  const extension = getAvatarImageType(req.file);
-  const uploadedFile = await uploadFile({
+  const uploadedFile = await uploadAvatarImage({
     buffer: req.file.buffer,
-    fileName: `avatar-${req.user._id}-${Date.now()}.${extension}`,
+    fileName: `avatar-${generateFileName(req.file.mimetype)}`,
   });
 
   if (!uploadedFile?.url || !uploadedFile?.fileId) {
@@ -394,7 +369,7 @@ export const updateAvatarController = async (req, res) => {
     }
   }
 
-  return sendSuccess(res, 200, "Avatar updated successfully", {
+  sendSuccess(res, 200, "Avatar updated successfully", {
     user: toPublicUser(req.user),
   });
 };
