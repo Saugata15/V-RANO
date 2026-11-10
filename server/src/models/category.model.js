@@ -8,6 +8,8 @@ const categorySchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
       unique: true,
+      minlength: 3,
+      maxlength: 30,
     },
     slug: {
       type: String,
@@ -20,10 +22,15 @@ const categorySchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
+      maxlength: 500,
     },
     image: {
       type: String,
       default: "",
+    },
+    imageId: {
+      type: String,
+      default: null,
     },
     isActive: {
       type: Boolean,
@@ -33,6 +40,6 @@ const categorySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-const Category = mongoose.model("Category",categorySchema);
+const Category = mongoose.model("Category", categorySchema);
 
 export default Category;
