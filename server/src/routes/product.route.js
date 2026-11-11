@@ -4,31 +4,52 @@ import { requireAdmin, requireAuth } from "../middlewares/auth.middleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { createProductController } from "../controllers/product.controller.js";
 import { AppError } from "../utils/AppError.js";
+import { parseProductJsonFields } from "../middlewares/product.middleware.js";
+import { createProductValidator } from "../validators/product.validator.js";
+import { validate } from "../middlewares/validate.middleware.js";
+import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
 
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 3 * 1024 * 1024,
+        fileSize: 5 * 1024 * 1024,
         files: 5,
     },
     fileFilter: (_req, file, callback) => {
-        const supportedTypes = ["image/jpeg", "image/png", "image/webp"];
-        if (!supportedTypes.includes(file.mimetype)) {
+        if (!SUPPORTED_IMAGE_TYPES.includes(file.mimetype)) {
             return callback(
-                new AppError(400, "Images must be a JPEG, PNG, or WebP image"),
+                new AppError(400, "Images must be a JPEG, PNG, JPG, AVIF or WebP image"),
             );
         }
         callback(null, true);
     },
 });
 
+export const handleImageUpload = (req, res, next) => {
+  upload.array("images",5)(req, res, (error) => {
+    if (error instanceof multer.MulterError) {
+      const statusCode = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+      return next(
+        new AppError(statusCode, "Invalid category image upload", [
+          { field: "image", message: error.message },
+        ]),
+      );
+    }
+    next(error);
+  });
+};
+
 const router = Router();
 
+// create product
 router.post(
     "/",
     asyncHandler(requireAuth),
     requireAdmin,
-    upload.array("images", 5),
+    handleImageUpload,
+    parseProductJsonFields,
+    createProductValidator,
+    validate,
     asyncHandler(createProductController),
 );
 

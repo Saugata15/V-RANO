@@ -25,6 +25,7 @@ import {
 } from "../middlewares/auth.middleware.js";
 import { AppError } from "../utils/AppError.js";
 import passport from "../config/passport.js";
+import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -33,10 +34,9 @@ const upload = multer({
     files: 1,
   },
   fileFilter: (_req, file, callback) => {
-    const supportedTypes = ["image/jpeg", "image/png", "image/webp"];
-    if (!supportedTypes.includes(file.mimetype)) {
+    if (!SUPPORTED_IMAGE_TYPES.includes(file.mimetype)) {
       return callback(
-        new AppError(400, "Avatar must be a JPEG, PNG, or WebP image"),
+        new AppError(400, "Images must be a JPEG, PNG, JPG, AVIF or WebP image"),
       );
     }
     callback(null, true);

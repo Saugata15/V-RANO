@@ -14,6 +14,7 @@ import {
 import { AppError } from "../utils/AppError.js";
 import { createCategoryValidator, mongoIdValidator, updateCategoryStatusValidator, updateCategoryValidator } from "../validators/category.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
+import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -22,19 +23,13 @@ const upload = multer({
     files: 1,
   },
   fileFilter: (_req, file, callback) => {
-    const supportedTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/jpg",
-    ];
-    if (!supportedTypes.includes(file.mimetype)) {
+    if (!SUPPORTED_IMAGE_TYPES.includes(file.mimetype)) {
       return callback(
-        new AppError(400, "Avatar must be a JPEG, PNG or WebP image"),
+        new AppError(400, "Images must be a JPEG, PNG, JPG, AVIF or WebP image"),
       );
     }
     callback(null, true);
-  },
+  }
 });
 
 const parseCategoryImageUpload = (req, res, next) => {
@@ -88,33 +83,33 @@ router.get(
 
 // update category by Admin
 router.patch(
-    "/:id",
-    asyncHandler(requireAuth),
-    requireAdmin,
-    parseCategoryImageUpload,
-    updateCategoryValidator,
-    validate,
-    asyncHandler(updateCategory),
+  "/:id",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  parseCategoryImageUpload,
+  updateCategoryValidator,
+  validate,
+  asyncHandler(updateCategory),
 );
 
 // delete category by Admin
 router.delete(
-    "/:id",
-    asyncHandler(requireAuth),
-    requireAdmin,
-    mongoIdValidator,
-    validate,
-    asyncHandler(deleteCategory),
+  "/:id",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  mongoIdValidator,
+  validate,
+  asyncHandler(deleteCategory),
 )
 
 // update category status
 router.patch(
-    "/:id/status",
-    asyncHandler(requireAuth),
-    requireAdmin,
-    updateCategoryStatusValidator,
-    validate,
-    asyncHandler(updateCategoryStatus),
+  "/:id/status",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  updateCategoryStatusValidator,
+  validate,
+  asyncHandler(updateCategoryStatus),
 );
 
 export default router;

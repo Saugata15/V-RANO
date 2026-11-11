@@ -4,13 +4,33 @@ const variantSchema = new mongoose.Schema({
     size: {
         type: String,
         required: true,
-        trim: true,
+        enum: ["S", "M", "L", "XL", "XXL"]
     },
 
     color: {
         type: String,
         required: true,
         trim: true,
+        enum: [
+            "Black",
+            "White",
+            "Grey",
+            "Navy Blue",
+            "Royal Blue",
+            "Sky Blue",
+            "Olive Green",
+            "Beige",
+            "Brown",
+            "Maroon",
+            "Red",
+            "Burgundy",
+            "Pink",
+            "Lavender",
+            "Purple",
+            "Yellow",
+            "Orange",
+            "Cream",
+        ],
     },
 
     stock: {
@@ -113,7 +133,10 @@ const productSchema = new mongoose.Schema(
         },
         variants: {
             type: [variantSchema],
-            default: [],
+            validate: {
+                validator: (variants) => variants.length > 0,
+                message: "At least one variant is required",
+            },
         },
         ratings: {
             average: {
