@@ -1,4 +1,4 @@
-import { body } from "express-validator";
+import { body, query } from "express-validator";
 import {
     PRODUCT_SIZES,
     PRODUCT_COLORS,
@@ -111,4 +111,56 @@ export const createProductValidator = [
         .optional()
         .isBoolean().withMessage("isFeatured must be a boolean").bail()
         .toBoolean(),
+];
+
+
+export const getActiveProductsValidator = [
+    query("page")
+        .optional()
+        .isInt({ min: 1 }).withMessage("Page must be a positive integer"),
+
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 50 }).withMessage("Limit must be between 1 and 50"),
+
+    query("search")
+        .optional()
+        .isString().withMessage("Search must be a string").bail()
+        .trim()
+        .isLength({ max: 100 }).withMessage("Search cannot exceed 100 characters"),
+
+    query("category")
+        .optional()
+        .isMongoId().withMessage("Invalid category ID"),
+
+    query("minPrice")
+        .optional()
+        .isFloat({ min: 0 }).withMessage("Minimum price must be non-negative"),
+
+    query("maxPrice")
+        .optional()
+        .isFloat({ min: 0 }).withMessage("Maximum price must be non-negative").bail()
+        .custom((value, { req }) => {
+            if (
+                req.query.minPrice !== undefined &&
+                Number(value) < Number(req.query.minPrice)
+            ) {
+                throw new Error(
+                    "Maximum price must be greater than or equal to minimum price"
+                );
+            }
+            return true;
+        }),
+
+    query("size")
+        .optional()
+        .isIn(PRODUCT_SIZES).withMessage("Invalid product size"),
+
+    query("color")
+        .optional()
+        .isIn(PRODUCT_COLORS).withMessage("Invalid product color"),
+
+    query("sort")
+        .optional()
+        .isIn(["newest", "oldest", "priceLow", "priceHigh"]).withMessage("Invalid sorting option"),
 ];

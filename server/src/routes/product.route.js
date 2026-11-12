@@ -2,10 +2,10 @@ import { Router } from "express";
 import multer from "multer";
 import { requireAdmin, requireAuth } from "../middlewares/auth.middleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { createProductController } from "../controllers/product.controller.js";
+import { createProductController, getActiveProductsController } from "../controllers/product.controller.js";
 import { AppError } from "../utils/AppError.js";
 import { parseProductJsonFields } from "../middlewares/product.middleware.js";
-import { createProductValidator } from "../validators/product.validator.js";
+import { createProductValidator, getActiveProductsValidator} from "../validators/product.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
 
@@ -52,5 +52,14 @@ router.post(
     validate,
     asyncHandler(createProductController),
 );
+
+// Get all active products
+router.get(
+  "/",
+  asyncHandler(requireAuth),
+  getActiveProductsValidator,
+  validate,
+  asyncHandler(getActiveProductsController),
+)
 
 export default router;
