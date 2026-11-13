@@ -1,5 +1,5 @@
 import { findCategoryById } from "../DAO/category.dao.js";
-import { createProductDAO, findProductBySlugDAO, getActiveProductsDAO } from "../DAO/product.dao.js";
+import { createProductDAO, findProductBySlugDAO, getActiveProductsDAO, getAllProductsForAdminDAO, getProductDetailsDAO } from "../DAO/product.dao.js";
 import { uploadProductImages } from "../services/storage.services.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { AppError } from "../utils/AppError.js";
@@ -118,4 +118,60 @@ export const getActiveProductsController = async (req, res) => {
             limit: limitNumber,
         },
     });
+}
+
+// get all products by admin
+export const getAllProductsForAdminController = async (req, res) => {
+    const {
+        page = 1,
+        limit = 20,
+        search,
+        status,
+        category,
+        sort = "newest",
+    } = req.query;
+
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const { products, totalProducts } =
+        await getAllProductsForAdminDAO({
+            skip,
+            limit: limitNumber,
+            search,
+            status,
+            category,
+            sort,
+        });
+
+    sendSuccess(res, 200, "Products fetched successfully", {
+        products,
+        pagination: {
+            currentPage: pageNumber,
+            totalPages: Math.ceil(totalProducts / limitNumber),
+            totalProducts,
+            limit: limitNumber,
+        },
+    });
+};
+
+// Get product details
+export const getProductDetailsController = async (req, res) => {
+    const { slug } = req.params;
+
+    if (!slug?.trim()) {
+        throw new AppError(400, "Slug is required");
+    }
+
+    const product = await getProductDetailsDAO(slug);
+
+    if(!product) {
+        throw new AppError(404, "Product not found");
+    }
+
+    sendSuccess(res,200,"Product found successfully", {
+        product
+    })
 }

@@ -2,31 +2,43 @@ import { Router } from "express";
 import multer from "multer";
 import { requireAdmin, requireAuth } from "../middlewares/auth.middleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { createProductController, getActiveProductsController } from "../controllers/product.controller.js";
+import {
+  createProductController,
+  getActiveProductsController,
+  getAllProductsForAdminController,
+  getProductDetailsController,
+} from "../controllers/product.controller.js";
 import { AppError } from "../utils/AppError.js";
 import { parseProductJsonFields } from "../middlewares/product.middleware.js";
-import { createProductValidator, getActiveProductsValidator} from "../validators/product.validator.js";
+import {
+  createProductValidator,
+  getActiveProductsValidator,
+  getAllProductsForAdminValidator,
+} from "../validators/product.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
 
 const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: {
-        fileSize: 5 * 1024 * 1024,
-        files: 5,
-    },
-    fileFilter: (_req, file, callback) => {
-        if (!SUPPORTED_IMAGE_TYPES.includes(file.mimetype)) {
-            return callback(
-                new AppError(400, "Images must be a JPEG, PNG, JPG, AVIF or WebP image"),
-            );
-        }
-        callback(null, true);
-    },
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 5,
+  },
+  fileFilter: (_req, file, callback) => {
+    if (!SUPPORTED_IMAGE_TYPES.includes(file.mimetype)) {
+      return callback(
+        new AppError(
+          400,
+          "Images must be a JPEG, PNG, JPG, AVIF or WebP image",
+        ),
+      );
+    }
+    callback(null, true);
+  },
 });
 
 export const handleImageUpload = (req, res, next) => {
-  upload.array("images",5)(req, res, (error) => {
+  upload.array("images", 5)(req, res, (error) => {
     if (error instanceof multer.MulterError) {
       const statusCode = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
       return next(
@@ -43,14 +55,14 @@ const router = Router();
 
 // create product
 router.post(
-    "/",
-    asyncHandler(requireAuth),
-    requireAdmin,
-    handleImageUpload,
-    parseProductJsonFields,
-    createProductValidator,
-    validate,
-    asyncHandler(createProductController),
+  "/",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  handleImageUpload,
+  parseProductJsonFields,
+  createProductValidator,
+  validate,
+  asyncHandler(createProductController),
 );
 
 // Get all active products
@@ -60,6 +72,23 @@ router.get(
   getActiveProductsValidator,
   validate,
   asyncHandler(getActiveProductsController),
-)
+);
+
+// Get all products for admin
+router.get(
+  "/admin",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  getAllProductsForAdminValidator,
+  validate,
+  asyncHandler(getAllProductsForAdminController),
+);
+
+// Get product detail
+router.get(
+  "/:slug",
+  asyncHandler(requireAuth),
+  asyncHandler(getProductDetailsController),
+);
 
 export default router;

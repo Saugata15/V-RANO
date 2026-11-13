@@ -113,7 +113,6 @@ export const createProductValidator = [
         .toBoolean(),
 ];
 
-
 export const getActiveProductsValidator = [
     query("page")
         .optional()
@@ -159,6 +158,36 @@ export const getActiveProductsValidator = [
     query("color")
         .optional()
         .isIn(PRODUCT_COLORS).withMessage("Invalid product color"),
+
+    query("sort")
+        .optional()
+        .isIn(["newest", "oldest", "priceLow", "priceHigh"]).withMessage("Invalid sorting option"),
+];
+
+export const getAllProductsForAdminValidator = [
+    query("page")
+        .optional()
+        .isInt({ min: 1 }).withMessage("Page must be a positive integer")
+        .toInt(),
+
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 50 }).withMessage("Limit must be between 1 and 50")
+        .toInt(),
+
+    query("search")
+        .optional()
+        .isString().withMessage("Search must be a string").bail()
+        .trim()
+        .isLength({ max: 100 }).withMessage("Search cannot exceed 100 characters"),
+
+    query("status")
+        .optional()
+        .isIn(["active", "archived"]).withMessage("Invalid product status"),
+
+    query("category")
+        .optional()
+        .isMongoId().withMessage("Invalid category ID"),
 
     query("sort")
         .optional()

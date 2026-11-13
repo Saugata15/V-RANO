@@ -136,3 +136,67 @@ export const getActiveProductsDAO = async ({
     };
 };
 
+export const getAllProductsForAdminDAO = async ({
+    skip,
+    limit,
+    search,
+    status,
+    category,
+    sort,
+}) => {
+    const filter = {};
+
+    if (status) {
+        filter.status = status;
+    }
+
+    if (search) {
+        const escapedSearch = search.trim().replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+        );
+
+        filter.title = {
+            $regex: escapedSearch,
+            $options: "i",
+        };
+    }
+
+    if (category) {
+        filter.categoryId = new mongoose.Types.ObjectId(category);
+    }
+
+    const sortOptions = {
+        newest: { createdAt: -1 },
+        oldest: { createdAt: 1 },
+        priceLow: { price: 1 },
+        priceHigh: { price: -1 },
+    };
+
+    const sortQuery = sortOptions[sort] || sortOptions.newest;
+
+    const [products, totalProducts] = await Promise.all([
+        Product.find(filter)
+            .populate("categoryId", "name slug isActive")
+            .sort(sortQuery)
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+
+        Product.countDocuments(filter),
+    ]);
+
+    return {
+        products,
+        totalProducts,
+    };
+};
+
+export const getProductDetailsDAO = async (slug) => {
+    const normalizeSlug = slug.trim().toLowerCase();
+    return await Product.findOne({ slug: normalizeSlug , status: "active"}).populate({
+        path: "categoryId",
+        match: { isActive: true },
+        select: "name slug",
+    });
+};
