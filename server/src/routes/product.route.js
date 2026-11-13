@@ -7,6 +7,8 @@ import {
   getActiveProductsController,
   getAllProductsForAdminController,
   getProductDetailsController,
+  updateProductController,
+  updateProductStatusController,
 } from "../controllers/product.controller.js";
 import { AppError } from "../utils/AppError.js";
 import { parseProductJsonFields } from "../middlewares/product.middleware.js";
@@ -14,6 +16,8 @@ import {
   createProductValidator,
   getActiveProductsValidator,
   getAllProductsForAdminValidator,
+  updateProductStatusValidator,
+  updateProductValidator,
 } from "../validators/product.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
@@ -89,6 +93,28 @@ router.get(
   "/:slug",
   asyncHandler(requireAuth),
   asyncHandler(getProductDetailsController),
+);
+
+// Update product details
+router.patch(
+  "/:id",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  handleImageUpload,
+  parseProductJsonFields,
+  updateProductValidator,
+  validate,
+  asyncHandler(updateProductController),
+)
+
+// Update product Status
+router.patch(
+    "/:id/status",
+    asyncHandler(requireAuth),
+    requireAdmin,
+    updateProductStatusValidator,
+    validate,
+    asyncHandler(updateProductStatusController),
 );
 
 export default router;

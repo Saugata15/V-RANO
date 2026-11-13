@@ -194,9 +194,30 @@ export const getAllProductsForAdminDAO = async ({
 
 export const getProductDetailsDAO = async (slug) => {
     const normalizeSlug = slug.trim().toLowerCase();
-    return await Product.findOne({ slug: normalizeSlug , status: "active"}).populate({
+    return await Product.findOne({ slug: normalizeSlug, status: "active" }).populate({
         path: "categoryId",
         match: { isActive: true },
         select: "name slug",
     });
 };
+
+export const findActiveProductByIdDAO = async (id) => {
+    return await Product.findOne({ _id: id, status: "active" });
+}
+
+export const findProductByIdDAO = async () =>{
+    return await Product.findOne({ _id: id });
+}
+
+
+export const updateProductDAO = async ({ id, updateData }) => {
+    return await Product.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        {
+            new: true,
+            runValidators: true,
+        }
+    );
+};
+
