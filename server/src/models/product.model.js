@@ -192,6 +192,7 @@ productSchema.pre("validate", function () {
   }
 });
 
+productSchema.index({ status: 1, categoryId: 1, createdAt: -1 });
 productSchema.index({ status: 1, createdAt: -1 });
 productSchema.index({ status: 1, price: 1 });
 

@@ -197,18 +197,32 @@ export const getProductDetailsDAO = async (slug) => {
     return await Product.findOne({ slug: normalizeSlug, status: "active" }).populate({
         path: "categoryId",
         match: { isActive: true },
-        select: "name slug",
-    });
+        select: "name slug isActive",
+    })
+    .lean();
+};
+
+export const getProductDetailsForAdminDAO = async (id) => {
+    return await Product.findById(id)
+        .populate({
+            path: "categoryId",
+            match: { isActive: true },
+            select: "name slug isActive",
+        })
+        .lean();
 };
 
 export const findActiveProductByIdDAO = async (id) => {
     return await Product.findOne({ _id: id, status: "active" });
 }
 
-export const findProductByIdDAO = async () =>{
+export const findProductByIdDAO = async (id) => {
     return await Product.findOne({ _id: id });
 }
 
+export const findByIdAndDeleteDAO = async (id) => {
+    return await Product.findByIdAndDelete(id);
+}
 
 export const updateProductDAO = async ({ id, updateData }) => {
     return await Product.findByIdAndUpdate(
@@ -221,3 +235,111 @@ export const updateProductDAO = async ({ id, updateData }) => {
     );
 };
 
+export const getRelatedProductsDAO = async ({
+    productId,
+    categoryId,
+    brand,
+    tags = [],
+    limit,
+}) => {
+    return Product.aggregate([
+        {
+            $match: {
+                _id: { $ne: productId },
+                categoryId,
+                status: "active",
+            },
+        },
+        {
+            $addFields: {
+                sharedTags: {
+                    $size: {
+                        $setIntersection: [
+                            { $ifNull: ["$tags", []] },
+                            { $literal: tags },
+                        ],
+                    },
+                },
+                sameBrand: { $cond: [{ $eq: ["$brand", brand] }, 1, 0] },
+            },
+        },
+        {
+            $sort: {
+                sharedTags: -1,
+                sameBrand: -1,
+                isFeatured: -1,
+                "ratings.average": -1,
+                createdAt: -1,
+            },
+        },
+        { $limit: limit },
+        {
+            $lookup: {
+                from: "categories",
+                localField: "categoryId",
+                foreignField: "_id",
+                as: "category",
+            },
+        },
+        { $unwind: "$category" },
+        {
+            $project: {
+                title: 1,
+                slug: 1,
+                description: 1,
+                price: 1,
+                compareAtPrice: 1,
+                images: 1,
+                variants: 1,
+                ratings: 1,
+                isFeatured: 1,
+                brand:1,
+                category: {
+                    name: "$category.name",
+                    slug: "$category.slug",
+                },
+            },
+        },
+    ]);
+};
+
+export const getFeaturedProductsDAO = async (limit) => {
+    return Product.aggregate([
+        {
+            $match: {
+                status: "active",
+                isFeatured: true,
+            },
+        },
+        { $sort: { createdAt: -1 } },
+        {
+            $lookup: {
+                from: "categories",
+                localField: "categoryId",
+                foreignField: "_id",
+                as: "category",
+            },
+        },
+        { $unwind: "$category" },
+        { $match: { "category.isActive": true } },
+        { $limit: limit },
+        {
+            $project: {
+                title: 1,
+                slug: 1,
+                description: 1,
+                price: 1,
+                compareAtPrice: 1,
+                images: 1,
+                variants: 1,
+                ratings: 1,
+                isFeatured: 1,
+                brand: 1,
+                category: {
+                    name: "$category.name",
+                    slug: "$category.slug",
+                },
+            },
+        },
+    ]);
+};

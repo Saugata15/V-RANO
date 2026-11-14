@@ -2,11 +2,14 @@ import { findCategoryById } from "../DAO/category.dao.js";
 import {
   createProductDAO,
   findActiveProductByIdDAO,
+  findByIdAndDeleteDAO,
   findProductByIdDAO,
   findProductBySlugDAO,
   getActiveProductsDAO,
   getAllProductsForAdminDAO,
   getProductDetailsDAO,
+  getProductDetailsForAdminDAO,
+  getRelatedProductsDAO,
   updateProductDAO,
 } from "../DAO/product.dao.js";
 import {
@@ -171,7 +174,37 @@ export const getAllProductsForAdminController = async (req, res) => {
   });
 };
 
-// Get product details
+// Get related products
+export const getRelatedProductsController = async (req, res) => {
+  const { id } = req.params;
+  const limit = req.query.limit ?? 8;
+
+  const product = await findActiveProductByIdDAO(id);
+
+  if (!product) {
+    throw new AppError(404, "Product not found");
+  }
+
+  const category = await findCategoryById(product.categoryId);
+
+  if (!category || !category.isActive) {
+    throw new AppError(404, "Product not found");
+  }
+
+  const products = await getRelatedProductsDAO({
+    productId: product._id,
+    categoryId: product.categoryId,
+    brand: product.brand,
+    tags: product.tags,
+    limit,
+  });
+
+  sendSuccess(res, 200, "Related products fetched successfully", {
+    products,
+  });
+};
+
+// Get product details for user by slug
 export const getProductDetailsController = async (req, res) => {
   const { slug } = req.params;
 
@@ -186,6 +219,21 @@ export const getProductDetailsController = async (req, res) => {
   }
 
   sendSuccess(res, 200, "Product found successfully", {
+    product,
+  });
+};
+
+// Get product details for admin by id(for both active and archived products)
+export const getProductDetailsForAdminController = async (req, res) => {
+  const { id } = req.params;
+
+  const product = await getProductDetailsForAdminDAO(id);
+
+  if (!product) {
+    throw new AppError(404, "Product not found");
+  }
+
+  sendSuccess(res, 200, "Product fetched successfully", {
     product,
   });
 };
@@ -228,7 +276,7 @@ export const updateProductController = async (req, res) => {
       throw new AppError(409, "Product with this title already exists");
     }
 
-    updateData.title = title;
+    updateData.title = normalizedTitle;
     updateData.slug = slug;
   }
 
@@ -349,36 +397,79 @@ export const updateProductController = async (req, res) => {
 
 // Update product status by admin
 export const updateProductStatusController = async (req, res) => {
-    const { id } = req.params;
-    const { status } = req.body;
+  const { id } = req.params;
+  const { status } = req.body;
 
-    const product = await findProductByIdDAO(id);
+  const product = await findProductByIdDAO(id);
 
-    if (!product) {
-        throw new AppError(404, "Product not found");
+  if (!product) {
+    throw new AppError(404, "Product not found");
+  }
+
+  if (product.status === status) {
+    throw new AppError(400, `Product is already ${status}`);
+  }
+
+  if (status === "active") {
+    const category = await findCategoryById(product.categoryId);
+
+    if (!category || !category.isActive) {
+      throw new AppError(
+        400,
+        "Cannot activate product because its category is inactive",
+      );
     }
+  }
 
-    if (product.status === status) {
-        throw new AppError(400, `Product is already ${status}`);
+  const updatedProduct = await updateProductDAO({
+    id,
+    updateData: { status },
+  });
+
+  sendSuccess(res, 200, "Product status updated successfully", {
+    product: updatedProduct,
+  });
+};
+
+// Delete product by admin
+export const deleteProductController = async (req, res) => {
+  const { id } = req.params;
+
+  const product = await findProductByIdDAO(id);
+
+  if (!product) {
+    throw new AppError(404, "Product not found");
+  }
+
+  const deletedProduct = await findByIdAndDeleteDAO(id);
+
+  if (!deletedProduct) {
+    throw new AppError(404, "Product not found");
+  }
+
+  const deletionResults = await Promise.allSettled(
+    deletedProduct.images.map((image) => deleteFile(image.fileId)),
+  );
+
+  deletionResults.forEach((result, index) => {
+    if (result.status === "rejected") {
+      console.error(
+        `Failed to delete product image: ${deletedProduct.images[index].fileId}`,
+        result.reason,
+      );
     }
+  });
 
-    if (status === "active") {
-        const category = await findCategoryById(product.categoryId);
+  sendSuccess(res, 200, "Product deleted successfully");
+};
 
-        if (!category || !category.isActive) {
-            throw new AppError(
-                400,
-                "Cannot activate product because its category is inactive"
-            );
-        }
-    }
+// Get featured products
+export const getFeaturedProductsController = async (req, res) => {
+  const limit = req.query.limit ?? 8;
 
-    const updatedProduct = await updateProductDAO({
-        id,
-        updateData: { status },
-    });
+  const products = await getFeaturedProductsDAO(limit);
 
-    sendSuccess(res, 200, "Product status updated successfully", {
-        product: updatedProduct,
-    });
+  sendSuccess(res, 200, "Featured products fetched successfully", {
+    products,
+  });
 };

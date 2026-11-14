@@ -4,9 +4,13 @@ import { requireAdmin, requireAuth } from "../middlewares/auth.middleware.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import {
   createProductController,
+  deleteProductController,
   getActiveProductsController,
   getAllProductsForAdminController,
+  getFeaturedProductsController,
   getProductDetailsController,
+  getProductDetailsForAdminController,
+  getRelatedProductsController,
   updateProductController,
   updateProductStatusController,
 } from "../controllers/product.controller.js";
@@ -14,8 +18,12 @@ import { AppError } from "../utils/AppError.js";
 import { parseProductJsonFields } from "../middlewares/product.middleware.js";
 import {
   createProductValidator,
+  deleteProductValidator,
   getActiveProductsValidator,
   getAllProductsForAdminValidator,
+  getFeaturedProductsValidator,
+  getProductDetailsForAdminValidator,
+  getRelatedProductsValidator,
   updateProductStatusValidator,
   updateProductValidator,
 } from "../validators/product.validator.js";
@@ -46,8 +54,8 @@ export const handleImageUpload = (req, res, next) => {
     if (error instanceof multer.MulterError) {
       const statusCode = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
       return next(
-        new AppError(statusCode, "Invalid category image upload", [
-          { field: "image", message: error.message },
+        new AppError(statusCode, "Invalid product image upload", [
+          { field: "images", message: error.message },
         ]),
       );
     }
@@ -88,11 +96,39 @@ router.get(
   asyncHandler(getAllProductsForAdminController),
 );
 
-// Get product detail
+// Get product details
 router.get(
   "/:slug",
   asyncHandler(requireAuth),
   asyncHandler(getProductDetailsController),
+);
+
+// Get featured products
+router.get(
+  "/featured",
+  asyncHandler(requireAuth),
+  getFeaturedProductsValidator,
+  validate,
+  asyncHandler(getFeaturedProductsController),
+);
+
+// Get product details for admin
+router.get(
+  "/admin/:id",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  getProductDetailsForAdminValidator,
+  validate,
+  asyncHandler(getProductDetailsForAdminController),
+);
+
+// Get related products for users
+router.get(
+  "/:id/related",
+  asyncHandler(requireAuth),
+  getRelatedProductsValidator,
+  validate,
+  asyncHandler(getRelatedProductsController),
 );
 
 // Update product details
@@ -105,16 +141,25 @@ router.patch(
   updateProductValidator,
   validate,
   asyncHandler(updateProductController),
-)
+);
 
 // Update product Status
 router.patch(
-    "/:id/status",
-    asyncHandler(requireAuth),
-    requireAdmin,
-    updateProductStatusValidator,
-    validate,
-    asyncHandler(updateProductStatusController),
+  "/:id/status",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  updateProductStatusValidator,
+  validate,
+  asyncHandler(updateProductStatusController),
+);
+
+router.delete(
+  "/:id",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  deleteProductValidator,
+  validate,
+  asyncHandler(deleteProductController),
 );
 
 export default router;

@@ -321,10 +321,38 @@ export const updateProductValidator = [
         .toBoolean(),
 ];
 
+export const getProductDetailsForAdminValidator = [
+    param("id")
+        .isMongoId().withMessage("Invalid product ID"),
+];
+
 export const updateProductStatusValidator = [
     param("id")
         .isMongoId().withMessage("Invalid product ID"),
 
     body("status")
         .isIn(["active", "archived"]).withMessage("Status must be active or archived"),
+];
+
+export const deleteProductValidator = [
+    param("id")
+        .isMongoId()
+        .withMessage("Invalid product ID"),
+];
+
+export const getRelatedProductsValidator = [
+    param("id")
+        .isMongoId().withMessage("Invalid product ID"),
+
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 12 }).withMessage("Limit must be between 1 and 12")
+        .toInt(),
+];
+
+export const getFeaturedProductsValidator = [
+    query("limit")
+        .optional()
+        .isInt({ min: 1, max: 20 }).withMessage("Limit must be between 1 and 20")
+        .toInt(),
 ];
