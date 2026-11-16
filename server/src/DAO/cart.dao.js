@@ -58,3 +58,31 @@ export const clearCartDAO = async (userId) => {
     { new: true },
   );
 };
+
+export const findCartItemDAO = async ({ userId, itemId }) => {
+  const cart = await Cart.findOne(
+    { user: userId, "items._id": itemId },
+    { items: { $elemMatch: { _id: itemId } } },
+  ).lean();
+
+  return cart?.items?.[0] || null;
+};
+
+export const updateCartItemQuantityDAO = async ({
+  userId,
+  itemId,
+  quantity,
+}) => {
+  return await Cart.findOneAndUpdate(
+    { user: userId, "items._id": itemId },
+    { $set: { "items.$.quantity": quantity } },
+    { new: true, runValidators: true },
+  )
+    .populate({
+      path: "items.productId",
+      select:
+        "title slug price compareAtPrice images variants status categoryId",
+      populate: { path: "categoryId", select: "isActive" },
+    })
+    .lean();
+};

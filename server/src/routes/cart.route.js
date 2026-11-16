@@ -6,10 +6,12 @@ import {
   clearCartController,
   getCartController,
   removeCartItemController,
+  updateCartItemController,
 } from "../controllers/cart.controller.js";
 import {
   addCartItemValidator,
   removeCartItemValidator,
+  updateCartItemValidator,
 } from "../validators/cart.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
 
@@ -36,6 +38,14 @@ router.delete(
   "/items",
   asyncHandler(requireAuth),
   asyncHandler(clearCartController),
+);
+
+router.patch(
+  "/items/:itemId",
+  asyncHandler(requireAuth),
+  updateCartItemValidator,
+  validate,
+  asyncHandler(updateCartItemController),
 );
 
 // remove Item from Cart

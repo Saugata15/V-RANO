@@ -29,3 +29,14 @@ export const removeCartItemValidator = [
     param("itemId")
         .isMongoId().withMessage("Invalid cart item ID"),
 ];
+
+export const updateCartItemValidator = [
+    param("itemId")
+        .isMongoId().withMessage("Invalid cart item ID"),
+
+    body("quantity")
+        .notEmpty().withMessage("Quantity is required").bail()
+        .isInt({ min: 1, max: MAX_QUANTITY_PER_ITEM })
+        .withMessage(`Quantity must be between 1 and ${MAX_QUANTITY_PER_ITEM}`)
+        .toInt(),
+];

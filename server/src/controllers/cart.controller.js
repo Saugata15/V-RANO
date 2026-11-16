@@ -1,9 +1,11 @@
 import { MAX_QUANTITY_PER_ITEM } from "../constants/product.constants.js";
 import {
   clearCartDAO,
+  findCartItemDAO,
   getCartDAO,
   getOrCreateCartDAO,
   removeCartItemDAO,
+  updateCartItemQuantityDAO,
 } from "../DAO/cart.dao.js";
 import { findCategoryById } from "../DAO/category.dao.js";
 import { findActiveProductByIdDAO } from "../DAO/product.dao.js";
@@ -191,5 +193,77 @@ export const removeCartItemController = async (req, res) => {
 
   sendSuccess(res, 200, "Item removed from cart successfully", {
     cart,
+  });
+};
+
+export const updateCartItemController = async (req, res) => {
+  const userId = req.user._id;
+  const { itemId } = req.params;
+  const { quantity } = req.body;
+  console.log(quantity);
+
+  const item = await findCartItemDAO({ userId, itemId });
+
+  if (!item) {
+    throw new AppError(404, "Cart item not found");
+  }
+
+  const product = await findActiveProductByIdDAO(item.productId);
+
+  if (!product) {
+    throw new AppError(
+      400,
+      "This product is no longer available. Please remove it from your cart.",
+    );
+  }
+
+  const category = await findCategoryById(product.categoryId);
+
+  if (!category || !category.isActive) {
+    throw new AppError(
+      400,
+      "This product is no longer available. Please remove it from your cart.",
+    );
+  }
+
+  const variant = product.variants.find(
+    (v) => v.size === item.size && v.color === item.color,
+  );
+
+  if (!variant) {
+    throw new AppError(
+      400,
+      "Selected size and color are no longer available. Please remove it from your cart.",
+    );
+  }
+
+  if (variant.stock === 0) {
+    throw new AppError(
+      400,
+      "Selected variant is out of stock. Please remove it from your cart.",
+    );
+  }
+
+  const maxAllowed = Math.min(variant.stock, MAX_QUANTITY_PER_ITEM);
+
+  if (quantity > maxAllowed) {
+    throw new AppError(
+      400,
+      `You can only have ${maxAllowed} of this item in your cart`,
+    );
+  }
+
+  const updatedCart = await updateCartItemQuantityDAO({
+    userId,
+    itemId,
+    quantity,
+  });
+
+  if (!updatedCart) {
+    throw new AppError(404, "Cart item not found");
+  }
+
+  sendSuccess(res, 200, "Cart item updated successfully", {
+    cart: buildCartResponse(updatedCart),
   });
 };
