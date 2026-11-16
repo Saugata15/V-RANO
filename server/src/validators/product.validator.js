@@ -53,7 +53,8 @@ export const createProductValidator = [
         .isString().withMessage("Each tag must be a string").bail()
         .trim()
         .notEmpty().withMessage("Tag cannot be empty").bail()
-        .isLength({ max: 30 }).withMessage("Each tag must be under 30 characters"),
+        .isLength({ max: 30 }).withMessage("Each tag must be under 30 characters")
+        .toLowerCase(),
 
     body("variants")
         .isArray({ min: 1 }).withMessage("At least one product variant is required"),
@@ -241,7 +242,8 @@ export const updateProductValidator = [
         .isString().withMessage("Each tag must be a string").bail()
         .trim()
         .notEmpty().withMessage("Tags cannot be empty").bail()
-        .isLength({ max: 30 }).withMessage("Each tag cannot exceed 30 characters"),
+        .isLength({ max: 30 }).withMessage("Each tag cannot exceed 30 characters")
+        .toLowerCase(),
 
     body("variants")
         .optional()

@@ -28,3 +28,5 @@ export const PRODUCT_COLORS = [
   "Orange",
   "Cream",
 ];
+
+export const MAX_QUANTITY_PER_ITEM = 10;
