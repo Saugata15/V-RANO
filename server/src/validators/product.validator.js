@@ -2,14 +2,17 @@ import { body, param, query } from "express-validator";
 import {
     PRODUCT_SIZES,
     PRODUCT_COLORS,
+    MAX_TAGS_PER_PRODUCT,
+    PRODUCT_TAGS,
 } from "../constants/product.constants.js";
+import { GENDERS } from "../constants/category.constants.js";
 
 export const createProductValidator = [
     body("title")
         .isString().withMessage("Product title must be a string").bail()
         .trim()
         .notEmpty().withMessage("Product title is required").bail()
-        .isLength({ min: 6, max: 60 }).withMessage("Product title must be 6-60 characters"),
+        .isLength({ min: 6, max: 100 }).withMessage("Product title must be 6-100 characters"),
 
     body("description")
         .isString().withMessage("Description must be a string").bail()
@@ -46,15 +49,14 @@ export const createProductValidator = [
 
     body("tags")
         .optional()
-        .isArray().withMessage("Tags must be an array"),
+        .isArray({ max: MAX_TAGS_PER_PRODUCT }).withMessage("Tags must be an array"),
 
     body("tags.*")
         .optional()
         .isString().withMessage("Each tag must be a string").bail()
         .trim()
-        .notEmpty().withMessage("Tag cannot be empty").bail()
-        .isLength({ max: 30 }).withMessage("Each tag must be under 30 characters")
-        .toLowerCase(),
+        .toLowerCase()
+        .isIn(PRODUCT_TAGS).withMessage("Invalid tag"),
 
     body("variants")
         .isArray({ min: 1 }).withMessage("At least one product variant is required"),
@@ -133,6 +135,13 @@ export const getActiveProductsValidator = [
         .optional()
         .isMongoId().withMessage("Invalid category ID"),
 
+    query("gender")
+        .optional()
+        .isString().withMessage("Gender should be a string").bail()
+        .trim()
+        .toLowerCase()
+        .isIn(GENDERS).withMessage(`Gender must be one of: ${GENDERS.join(", ")}`),
+
     query("minPrice")
         .optional()
         .isFloat({ min: 0 }).withMessage("Minimum price must be non-negative"),
@@ -204,7 +213,7 @@ export const updateProductValidator = [
         .isString().withMessage("Title must be a string").bail()
         .trim()
         .notEmpty().withMessage("Title cannot be empty").bail()
-        .isLength({ min: 6, max: 60 }).withMessage("Title must be between 6 and 60 characters"),
+        .isLength({ min: 6, max: 100 }).withMessage("Title must be between 6 and 100 characters"),
 
     body("description")
         .optional()
@@ -235,19 +244,29 @@ export const updateProductValidator = [
 
     body("tags")
         .optional()
-        .isArray().withMessage("Tags must be an array"),
+        .isArray({max:MAX_TAGS_PER_PRODUCT}).withMessage("Tags must be an array"),
 
     body("tags.*")
         .optional()
         .isString().withMessage("Each tag must be a string").bail()
         .trim()
-        .notEmpty().withMessage("Tags cannot be empty").bail()
-        .isLength({ max: 30 }).withMessage("Each tag cannot exceed 30 characters")
-        .toLowerCase(),
+        .toLowerCase()
+        .isIn(PRODUCT_TAGS).withMessage("Invalid tag"),
 
     body("variants")
         .optional()
-        .isArray({ min: 1 }).withMessage("At least one variant is required"),
+        .custom((variants) => {
+            if (!Array.isArray(variants)) return true; // the isArray chain reports this
+
+            const combinations = variants.map(
+                (v) => `${v?.size?.trim?.().toLowerCase()}-${v?.color?.trim?.().toLowerCase()}`,
+            );
+
+            if (new Set(combinations).size !== combinations.length) {
+                throw new Error("Duplicate size and color combinations are not allowed");
+            }
+            return true;
+        }),
 
     body("variants.*.size")
         .if(body("variants").exists())
@@ -266,23 +285,6 @@ export const updateProductValidator = [
         .notEmpty().withMessage("Stock is required").bail()
         .isInt({ min: 0 }).withMessage("Stock must be a non-negative integer").bail()
         .toInt(),
-
-    body("variants")
-        .optional()
-        .custom((variants) => {
-            const combinations = variants.map(
-                ({ size, color }) =>
-                    `${size.trim().toLowerCase()}-${color.trim().toLowerCase()}`
-            );
-
-            if (new Set(combinations).size !== combinations.length) {
-                throw new Error(
-                    "Duplicate size and color combinations are not allowed"
-                );
-            }
-
-            return true;
-        }),
 
     body("ratings")
         .optional()

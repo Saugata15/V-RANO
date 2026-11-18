@@ -1,37 +1,22 @@
 import mongoose from "mongoose";
+import {
+  PRODUCT_COLORS,
+  PRODUCT_SIZES,
+} from "../constants/product.constants.js";
 
 const variantSchema = new mongoose.Schema(
   {
     size: {
       type: String,
       required: true,
-      enum: ["S", "M", "L", "XL", "XXL"],
+      enum: PRODUCT_SIZES,
     },
 
     color: {
       type: String,
       required: true,
       trim: true,
-      enum: [
-        "Black",
-        "White",
-        "Grey",
-        "Navy Blue",
-        "Royal Blue",
-        "Sky Blue",
-        "Olive Green",
-        "Beige",
-        "Brown",
-        "Maroon",
-        "Red",
-        "Burgundy",
-        "Pink",
-        "Lavender",
-        "Purple",
-        "Yellow",
-        "Orange",
-        "Cream",
-      ],
+      enum: PRODUCT_COLORS,
     },
 
     stock: {
@@ -82,7 +67,7 @@ const productSchema = new mongoose.Schema(
       required: true,
       trim: true,
       minlength: 6,
-      maxlength: 60,
+      maxlength: 100,
     },
     slug: {
       type: String,
@@ -124,7 +109,9 @@ const productSchema = new mongoose.Schema(
       default: null,
       validate: {
         validator: function (value) {
-          return value == null || value > this.price;
+          if (value == null) return true;
+          if (this instanceof mongoose.Query) return true; // update: controller handles it
+          return value > this.price;
         },
         message: "Compare-at price must be greater than selling price",
       },

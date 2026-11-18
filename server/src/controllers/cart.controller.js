@@ -7,7 +7,7 @@ import {
   removeCartItemDAO,
   updateCartItemQuantityDAO,
 } from "../DAO/cart.dao.js";
-import { findCategoryById } from "../DAO/category.dao.js";
+import { findCategoryByIdDAO } from "../DAO/category.dao.js";
 import { findActiveProductByIdDAO } from "../DAO/product.dao.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { AppError } from "../utils/AppError.js";
@@ -111,7 +111,7 @@ export const addToCartController = async (req, res) => {
     throw new AppError(404, "Product not found or inactive");
   }
 
-  const category = await findCategoryById(product.categoryId);
+  const category = await findCategoryByIdDAO(product.categoryId);
 
   if (!category || !category.isActive) {
     throw new AppError(404, "Product not found");
@@ -143,7 +143,7 @@ export const addToCartController = async (req, res) => {
     : quantity;
 
   if (newQuantity > MAX_QUANTITY_PER_ITEM) {
-    throw new AppError(400, "Maximum 10 items allowed per product");
+    throw new AppError(400, `Maximum ${MAX_QUANTITY_PER_ITEM} items allowed per product`);
   }
 
   if (newQuantity > variant.stock) {
@@ -163,8 +163,10 @@ export const addToCartController = async (req, res) => {
 
   await cart.save();
 
+  const updatedCart = await getCartDAO(userId);
+
   sendSuccess(res, 200, "Product added to cart successfully", {
-    cart,
+    cart: buildCartResponse(updatedCart),
   });
 };
 
@@ -200,7 +202,6 @@ export const updateCartItemController = async (req, res) => {
   const userId = req.user._id;
   const { itemId } = req.params;
   const { quantity } = req.body;
-  console.log(quantity);
 
   const item = await findCartItemDAO({ userId, itemId });
 
@@ -217,7 +218,7 @@ export const updateCartItemController = async (req, res) => {
     );
   }
 
-  const category = await findCategoryById(product.categoryId);
+  const category = await findCategoryByIdDAO(product.categoryId);
 
   if (!category || !category.isActive) {
     throw new AppError(

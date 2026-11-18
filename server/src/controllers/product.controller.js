@@ -1,4 +1,4 @@
-import { findCategoryById } from "../DAO/category.dao.js";
+import { findCategoryByIdDAO } from "../DAO/category.dao.js";
 import {
   createProductDAO,
   findActiveProductByIdDAO,
@@ -7,6 +7,7 @@ import {
   findProductBySlugDAO,
   getActiveProductsDAO,
   getAllProductsForAdminDAO,
+  getFeaturedProductsDAO,
   getProductDetailsDAO,
   getProductDetailsForAdminDAO,
   getRelatedProductsDAO,
@@ -38,7 +39,7 @@ export const createProductController = async (req, res) => {
   const normalizedTitle = title.trim().toLowerCase();
   const slug = createSlug(normalizedTitle);
 
-  const category = await findCategoryById(categoryId);
+  const category = await findCategoryByIdDAO(categoryId);
 
   if (!category || !category.isActive) {
     throw new AppError(404, "Active category not found");
@@ -88,7 +89,9 @@ export const createProductController = async (req, res) => {
     await Promise.allSettled(
       uploadedImages.map((image) => deleteFile(image.fileId)),
     );
-
+    if (error.code === 11000) {
+      throw new AppError(409, "Product already exists");
+    }
     throw error;
   }
 
@@ -104,6 +107,7 @@ export const getActiveProductsController = async (req, res) => {
     limit = 20,
     search,
     category,
+    gender,
     minPrice,
     maxPrice,
     size,
@@ -120,6 +124,7 @@ export const getActiveProductsController = async (req, res) => {
     limit: limitNumber,
     search,
     category,
+    gender,
     minPrice,
     maxPrice,
     size,
@@ -185,7 +190,7 @@ export const getRelatedProductsController = async (req, res) => {
     throw new AppError(404, "Product not found");
   }
 
-  const category = await findCategoryById(product.categoryId);
+  const category = await findCategoryByIdDAO(product.categoryId);
 
   if (!category || !category.isActive) {
     throw new AppError(404, "Product not found");
@@ -214,7 +219,7 @@ export const getProductDetailsController = async (req, res) => {
 
   const product = await getProductDetailsDAO(slug);
 
-  if (!product) {
+  if (!product || !product.category) {
     throw new AppError(404, "Product not found");
   }
 
@@ -255,7 +260,7 @@ export const updateProductController = async (req, res) => {
 
   const { id } = req.params;
 
-  const product = await findActiveProductByIdDAO(id);
+  const product = await findProductByIdDAO(id);
 
   if (!product) {
     throw new AppError(404, "Product not found");
@@ -285,7 +290,7 @@ export const updateProductController = async (req, res) => {
   }
 
   if (categoryId !== undefined) {
-    const category = await findCategoryById(categoryId);
+    const category = await findCategoryByIdDAO(categoryId);
 
     if (!category || !category.isActive) {
       throw new AppError(404, "Active category not found");
@@ -307,17 +312,6 @@ export const updateProductController = async (req, res) => {
   }
 
   const effectivePrice = price ?? product.price;
-
-  if (
-    compareAtPrice !== undefined &&
-    compareAtPrice !== null &&
-    compareAtPrice <= effectivePrice
-  ) {
-    throw new AppError(
-      400,
-      "Compare-at price must be greater than selling price",
-    );
-  }
 
   const effectiveCompareAtPrice =
     compareAtPrice !== undefined ? compareAtPrice : product.compareAtPrice;
@@ -353,10 +347,11 @@ export const updateProductController = async (req, res) => {
 
   if (req.files?.length > 0) {
     uploadedImages = await uploadProductImages(req.files);
+    const effectiveTitle = updateData.title ?? product.title;
 
     updateData.images = uploadedImages.map((image, index) => ({
       ...image,
-      alt: `${normalizedTitle} image ${index + 1}`,
+      alt: `${effectiveTitle} image ${index + 1}`,
       isPrimary: index === 0,
     }));
   }
@@ -380,7 +375,9 @@ export const updateProductController = async (req, res) => {
     await Promise.allSettled(
       uploadedImages.map((image) => deleteFile(image.fileId)),
     );
-
+    if (error.code === 11000) {
+      throw new AppError(409, "Product already exists");
+    }
     throw error;
   }
 
@@ -411,7 +408,7 @@ export const updateProductStatusController = async (req, res) => {
   }
 
   if (status === "active") {
-    const category = await findCategoryById(product.categoryId);
+    const category = await findCategoryByIdDAO(product.categoryId);
 
     if (!category || !category.isActive) {
       throw new AppError(

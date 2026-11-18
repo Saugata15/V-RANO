@@ -8,11 +8,11 @@ import { createSlug } from "../utils/slug.utils.js";
 import {
   createCategoryDAO,
   deleteCategoryDAO,
-  findCategory,
-  findCategoryById,
+  findCategoryByIdDAO,
   findCategoryBySlugDAO,
+  findCategoryDAO,
   getAllActiveCategoriesDAO,
-  getCategoriesForAdmin,
+  getCategoriesForAdminDAO,
   updateCategoryDAO,
 } from "../DAO/category.dao.js";
 import { sendSuccess } from "../utils/apiResponse.js";
@@ -20,11 +20,15 @@ import { countProductsByCategoryDAO } from "../DAO/product.dao.js";
 
 // Create category by Admin
 export const createCategory = async (req, res) => {
-  const { name, description, isActive } = req.body;
+  const { name, gender, description, isActive } = req.body;
   const normalizedName = name.trim().toLowerCase();
-  const slug = createSlug(normalizedName);
+  const slug = createSlug(`${gender}-${normalizedName}`);
 
-  const existingCategory = await findCategory({ name: normalizedName, slug });
+  const existingCategory = await findCategoryDAO({
+    gender,
+    name: normalizedName,
+    slug,
+  });
 
   if (existingCategory) {
     throw new AppError(409, "Category already exists");
@@ -43,6 +47,7 @@ export const createCategory = async (req, res) => {
     const category = await createCategoryDAO({
       name: normalizedName,
       slug,
+      gender,
       description,
       image: uploadedFile?.url || "",
       imageId: uploadedFile?.fileId || null,
@@ -54,7 +59,10 @@ export const createCategory = async (req, res) => {
     });
   } catch (error) {
     if (uploadedFile?.fileId) {
-      await deleteFile(uploadedFile.fileId).catch(() => { });
+      await deleteFile(uploadedFile.fileId).catch(() => {});
+    }
+    if (error.code === 11000) {
+      throw new AppError(409, "Category already exists");
     }
     throw error;
   }
@@ -62,7 +70,8 @@ export const createCategory = async (req, res) => {
 
 // Get all categories
 export const getAllCategories = async (req, res) => {
-  const categories = await getCategoriesForAdmin();
+  const { gender } = req.query;
+  const categories = await getCategoriesForAdminDAO(gender);
 
   sendSuccess(res, 200, "Categories found", {
     categories,
@@ -71,7 +80,8 @@ export const getAllCategories = async (req, res) => {
 
 // Get all active categories
 export const getAllActiveCategories = async (req, res) => {
-  const categories = await getAllActiveCategoriesDAO();
+  const { gender } = req.query;
+  const categories = await getAllActiveCategoriesDAO(gender);
 
   sendSuccess(res, 200, "Categories found", {
     categories: categories,
@@ -102,7 +112,7 @@ export const updateCategory = async (req, res) => {
   const { name, description } = req.body;
   const { id } = req.params;
 
-  const category = await findCategoryById(id);
+  const category = await findCategoryByIdDAO(id);
 
   if (!category) {
     throw new AppError(404, "Category not found");
@@ -114,9 +124,10 @@ export const updateCategory = async (req, res) => {
   try {
     if (name !== undefined) {
       const normalizedName = name.trim().toLowerCase();
-      const slug = createSlug(normalizedName);
+      const slug = createSlug(`${category.gender}-${normalizedName}`);
 
-      const existingCategory = await findCategory({
+      const existingCategory = await findCategoryDAO({
+        gender: category.gender,
         name: normalizedName,
         slug,
       });
@@ -154,7 +165,7 @@ export const updateCategory = async (req, res) => {
     }
 
     if (uploadedFile && category.imageId) {
-      await deleteFile(category.imageId).catch(() => { });
+      await deleteFile(category.imageId).catch(() => {});
     }
 
     sendSuccess(res, 200, "Category updated successfully", {
@@ -162,9 +173,11 @@ export const updateCategory = async (req, res) => {
     });
   } catch (error) {
     if (uploadedFile?.fileId) {
-      await deleteFile(uploadedFile.fileId).catch(() => { });
+      await deleteFile(uploadedFile.fileId).catch(() => {});
     }
-
+    if (error.code === 11000) {
+      throw new AppError(409, "Category already exists");
+    }
     throw error;
   }
 };
@@ -173,7 +186,7 @@ export const updateCategory = async (req, res) => {
 export const deleteCategory = async (req, res) => {
   const { id } = req.params;
 
-  const category = await findCategoryById(id);
+  const category = await findCategoryByIdDAO(id);
 
   if (!category) {
     throw new AppError(404, "Category not found");
@@ -195,7 +208,7 @@ export const deleteCategory = async (req, res) => {
   }
 
   if (category.imageId) {
-    await deleteFile(category.imageId).catch(() => { });
+    await deleteFile(category.imageId).catch(() => {});
   }
 
   sendSuccess(res, 200, "Category deleted successfully");
@@ -206,7 +219,7 @@ export const updateCategoryStatus = async (req, res) => {
   const { id } = req.params;
   const { isActive } = req.body;
 
-  const category = await findCategoryById(id);
+  const category = await findCategoryByIdDAO(id);
 
   if (!category) {
     throw new AppError(404, "Category not found");

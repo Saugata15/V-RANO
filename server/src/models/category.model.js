@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { GENDERS } from "../constants/category.constants.js";
 
 const categorySchema = new mongoose.Schema(
   {
@@ -7,9 +8,14 @@ const categorySchema = new mongoose.Schema(
       required: true,
       trim: true,
       lowercase: true,
-      unique: true,
       minlength: 3,
       maxlength: 30,
+    },
+    gender: {
+      type: String,
+      required: true,
+      enum: GENDERS,
+      lowercase: true,
     },
     slug: {
       type: String,
@@ -39,6 +45,9 @@ const categorySchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+categorySchema.index({ gender: 1, name: 1 }, { unique: true });
+categorySchema.index({ isActive: 1, gender: 1 });
 
 const Category = mongoose.model("Category", categorySchema);
 

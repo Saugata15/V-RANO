@@ -86,6 +86,15 @@ router.get(
   asyncHandler(getActiveProductsController),
 );
 
+// Get featured products
+router.get(
+  "/featured",
+  asyncHandler(requireAuth),
+  getFeaturedProductsValidator,
+  validate,
+  asyncHandler(getFeaturedProductsController),
+);
+
 // Get all products for admin
 router.get(
   "/admin",
@@ -96,22 +105,6 @@ router.get(
   asyncHandler(getAllProductsForAdminController),
 );
 
-// Get product details
-router.get(
-  "/:slug",
-  asyncHandler(requireAuth),
-  asyncHandler(getProductDetailsController),
-);
-
-// Get featured products
-router.get(
-  "/featured",
-  asyncHandler(requireAuth),
-  getFeaturedProductsValidator,
-  validate,
-  asyncHandler(getFeaturedProductsController),
-);
-
 // Get product details for admin
 router.get(
   "/admin/:id",
@@ -120,6 +113,13 @@ router.get(
   getProductDetailsForAdminValidator,
   validate,
   asyncHandler(getProductDetailsForAdminController),
+);
+
+// Get product details
+router.get(
+  "/:slug",
+  asyncHandler(requireAuth),
+  asyncHandler(getProductDetailsController),
 );
 
 // Get related products for users

@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
 import Category from "../models/category.model.js";
 
-export const findCategory = async ({ name, slug }) => {
+export const findCategoryDAO = async ({ gender, name, slug }) => {
   const category = await Category.findOne({
-    $or: [{ name }, { slug }],
+    $or: [{ gender, name }, { slug }],
   });
   return category;
 };
@@ -11,35 +11,39 @@ export const findCategory = async ({ name, slug }) => {
 export const createCategoryDAO = async ({
   name,
   slug,
+  gender,
   description,
   image = "",
   imageId = null,
   isActive = false,
 }) => {
-  const category = await Category.create({
+  return await Category.create({
     name,
     slug,
+    gender,
     description,
     image,
     imageId,
     isActive,
   });
-  return category;
 };
 
-export const getCategoriesForAdmin = async () => {
-  return await Category.find({}).sort({ createdAt: -1 });
+export const getCategoriesForAdminDAO = async (gender) => {
+  const filter = gender ? { gender } : {};
+  return await Category.find(filter).sort({ createdAt: -1 });
 };
 
-export const getAllActiveCategoriesDAO = async () => {
-  return await Category.find({ isActive: true }).sort({ name: 1 });
+export const getAllActiveCategoriesDAO = async (gender) => {
+  const filter = { isActive: true };
+  if (gender) filter.gender = { $in: [gender, "unisex"] };
+  return await Category.find(filter).sort({ name: 1 });
 };
 
 export const findCategoryBySlugDAO = async (slug) => {
   return await Category.findOne({ isActive: true, slug });
 };
 
-export const findCategoryById = async (id) => {
+export const findCategoryByIdDAO = async (id) => {
   if (!mongoose.isValidObjectId(id)) return null;
   return await Category.findById(id);
 };

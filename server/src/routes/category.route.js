@@ -12,7 +12,14 @@ import {
   updateCategoryStatus,
 } from "../controllers/category.controller.js";
 import { AppError } from "../utils/AppError.js";
-import { createCategoryValidator, mongoIdValidator, updateCategoryStatusValidator, updateCategoryValidator } from "../validators/category.validator.js";
+import {
+  categoryGenderQueryValidator,
+  createCategoryValidator,
+  mongoIdValidator,
+  slugParamValidator,
+  updateCategoryStatusValidator,
+  updateCategoryValidator,
+} from "../validators/category.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
 
@@ -25,11 +32,14 @@ const upload = multer({
   fileFilter: (_req, file, callback) => {
     if (!SUPPORTED_IMAGE_TYPES.includes(file.mimetype)) {
       return callback(
-        new AppError(400, "Images must be a JPEG, PNG, JPG, AVIF or WebP image"),
+        new AppError(
+          400,
+          "Images must be a JPEG, PNG, JPG, AVIF or WebP image",
+        ),
       );
     }
     callback(null, true);
-  }
+  },
 });
 
 const parseCategoryImageUpload = (req, res, next) => {
@@ -64,6 +74,8 @@ router.get(
   "/admin",
   asyncHandler(requireAuth),
   requireAdmin,
+  categoryGenderQueryValidator,
+  validate,
   asyncHandler(getAllCategories),
 );
 
@@ -71,6 +83,8 @@ router.get(
 router.get(
   "/",
   asyncHandler(requireAuth),
+  categoryGenderQueryValidator,
+  validate,
   asyncHandler(getAllActiveCategories),
 );
 
@@ -78,6 +92,8 @@ router.get(
 router.get(
   "/:slug",
   asyncHandler(requireAuth),
+  slugParamValidator,
+  validate,
   asyncHandler(findCategoryBySlug),
 );
 
@@ -100,7 +116,7 @@ router.delete(
   mongoIdValidator,
   validate,
   asyncHandler(deleteCategory),
-)
+);
 
 // update category status
 router.patch(

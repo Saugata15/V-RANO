@@ -1,345 +1,359 @@
 import Product from "../models/product.model.js";
 import mongoose from "mongoose";
 
+const withCategory = (product) => {
+  if (!product) return null;
+  const { categoryId, ...rest } = product;
+  return { ...rest, category: categoryId ?? null };
+};
+
 export const countProductsByCategoryDAO = async (categoryId) => {
-    return Product.countDocuments({ categoryId });
+  return Product.countDocuments({ categoryId });
 };
 
 export const createProductDAO = async (productData) => {
-    return await Product.create(productData);
+  return await Product.create(productData);
 };
 
 export const findProductBySlugDAO = async (slug) => {
-    return await Product.findOne({ slug });
+  return await Product.findOne({ slug });
 };
 
 export const getActiveProductsDAO = async ({
-    skip,
-    limit,
-    search,
-    category,
-    minPrice,
-    maxPrice,
-    size,
-    color,
-    sort,
+  skip,
+  limit,
+  search,
+  category,
+  gender,
+  minPrice,
+  maxPrice,
+  size,
+  color,
+  sort,
 }) => {
-    const filter = {
-        status: "active",
+  const filter = {
+    status: "active",
+  };
+
+  if (search) {
+    const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    filter.title = {
+      $regex: escapedSearch,
+      $options: "i",
     };
+  }
 
-    if (search) {
-        const escapedSearch = search.trim().replace(
-            /[.*+?^${}()|[\]\\]/g,
-            "\\$&"
-        );
+  if (category) {
+    filter.categoryId = new mongoose.Types.ObjectId(category);
+  }
 
-        filter.title = {
-            $regex: escapedSearch,
-            $options: "i",
-        };
+  if (minPrice !== undefined || maxPrice !== undefined) {
+    filter.price = {};
+
+    if (minPrice !== undefined) {
+      filter.price.$gte = Number(minPrice);
     }
 
-    if (category) {
-        filter.categoryId = new mongoose.Types.ObjectId(category);
+    if (maxPrice !== undefined) {
+      filter.price.$lte = Number(maxPrice);
     }
+  }
 
-    if (minPrice !== undefined || maxPrice !== undefined) {
-        filter.price = {};
+  if (size || color) {
+    const variantFilter = {};
 
-        if (minPrice !== undefined) {
-            filter.price.$gte = Number(minPrice);
-        }
+    if (size) variantFilter.size = size;
+    if (color) variantFilter.color = color;
 
-        if (maxPrice !== undefined) {
-            filter.price.$lte = Number(maxPrice);
-        }
-    }
-
-    if (size || color) {
-        const variantFilter = {};
-
-        if (size) variantFilter.size = size;
-        if (color) variantFilter.color = color;
-
-        filter.variants = {
-            $elemMatch: variantFilter,
-        };
-    }
-
-    const sortOptions = {
-        newest: { createdAt: -1 },
-        oldest: { createdAt: 1 },
-        priceLow: { price: 1 },
-        priceHigh: { price: -1 },
+    filter.variants = {
+      $elemMatch: variantFilter,
     };
+  }
 
-    const sortQuery = sortOptions[sort] || sortOptions.newest;
+  const sortOptions = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    priceLow: { price: 1 },
+    priceHigh: { price: -1 },
+  };
 
-    const result = await Product.aggregate([
-        {
-            $match: filter,
-        },
-        {
-            $sort: sortQuery,
-        },
-        {
-            $lookup: {
-                from: "categories",
-                localField: "categoryId",
-                foreignField: "_id",
-                as: "category",
-            },
-        },
-        {
-            $unwind: "$category",
-        },
-        {
-            $match: {
-                "category.isActive": true,
-            },
-        },
-        {
-            $facet: {
-                products: [
-                    { $skip: skip },
-                    { $limit: limit },
-                    {
-                        $project: {
-                            title: 1,
-                            slug: 1,
-                            description: 1,
-                            price: 1,
-                            compareAtPrice: 1,
-                            images: 1,
-                            variants: 1,
-                            ratings: 1,
-                            isFeatured: 1,
-                            category: {
-                                name: "$category.name",
-                                slug: "$category.slug",
-                                // id: "$category._id",
-                            },
-                        },
-                    },
-                ],
-                totalCount: [
-                    { $count: "count" },
-                ],
-            },
-        },
-    ]);
+  const sortQuery = { ...(sortOptions[sort] || sortOptions.newest), _id: -1 };
 
-    return {
-        products: result[0]?.products || [],
-        totalProducts: result[0]?.totalCount[0]?.count || 0,
-    };
+  const categoryMatch = { "category.isActive": true };
+
+  if (gender) {
+    // "men" also includes unisex categories like accessories
+    categoryMatch["category.gender"] = { $in: [gender, "unisex"] };
+  }
+
+  const result = await Product.aggregate([
+    {
+      $match: filter,
+    },
+    {
+      $sort: sortQuery,
+    },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "categoryId",
+        foreignField: "_id",
+        as: "category",
+      },
+    },
+    {
+      $unwind: "$category",
+    },
+    {
+      $match: categoryMatch,
+    },
+    {
+      $facet: {
+        products: [
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              title: 1,
+              slug: 1,
+              description: 1,
+              price: 1,
+              compareAtPrice: 1,
+              images: 1,
+              variants: 1,
+              ratings: 1,
+              isFeatured: 1,
+              category: {
+                _id: "$category._id",
+                name: "$category.name",
+                slug: "$category.slug",
+                gender: "$category.gender",
+              },
+            },
+          },
+        ],
+        totalCount: [{ $count: "count" }],
+      },
+    },
+  ]);
+
+  return {
+    products: result[0]?.products || [],
+    totalProducts: result[0]?.totalCount[0]?.count || 0,
+  };
 };
 
 export const getAllProductsForAdminDAO = async ({
-    skip,
-    limit,
-    search,
-    status,
-    category,
-    sort,
+  skip,
+  limit,
+  search,
+  status,
+  category,
+  sort,
 }) => {
-    const filter = {};
+  const filter = {};
 
-    if (status) {
-        filter.status = status;
-    }
+  if (status) {
+    filter.status = status;
+  }
 
-    if (search) {
-        const escapedSearch = search.trim().replace(
-            /[.*+?^${}()|[\]\\]/g,
-            "\\$&"
-        );
+  if (search) {
+    const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-        filter.title = {
-            $regex: escapedSearch,
-            $options: "i",
-        };
-    }
-
-    if (category) {
-        filter.categoryId = new mongoose.Types.ObjectId(category);
-    }
-
-    const sortOptions = {
-        newest: { createdAt: -1 },
-        oldest: { createdAt: 1 },
-        priceLow: { price: 1 },
-        priceHigh: { price: -1 },
+    filter.title = {
+      $regex: escapedSearch,
+      $options: "i",
     };
+  }
 
-    const sortQuery = sortOptions[sort] || sortOptions.newest;
+  if (category) {
+    filter.categoryId = new mongoose.Types.ObjectId(category);
+  }
 
-    const [products, totalProducts] = await Promise.all([
-        Product.find(filter)
-            .populate("categoryId", "name slug isActive")
-            .sort(sortQuery)
-            .skip(skip)
-            .limit(limit)
-            .lean(),
+  const sortOptions = {
+    newest: { createdAt: -1 },
+    oldest: { createdAt: 1 },
+    priceLow: { price: 1 },
+    priceHigh: { price: -1 },
+  };
 
-        Product.countDocuments(filter),
-    ]);
+  const sortQuery = { ...(sortOptions[sort] || sortOptions.newest), _id: -1 };
 
-    return {
-        products,
-        totalProducts,
-    };
+  const [products, totalProducts] = await Promise.all([
+    Product.find(filter)
+      .populate("categoryId", "name slug gender isActive")
+      .sort(sortQuery)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+
+    Product.countDocuments(filter),
+  ]);
+
+  return {
+    products: products.map(withCategory),
+    totalProducts,
+  };
 };
 
 export const getProductDetailsDAO = async (slug) => {
-    const normalizeSlug = slug.trim().toLowerCase();
-    return await Product.findOne({ slug: normalizeSlug, status: "active" }).populate({
-        path: "categoryId",
-        match: { isActive: true },
-        select: "name slug isActive",
+  const normalizeSlug = slug.trim().toLowerCase();
+
+  const product = await Product.findOne({
+    slug: normalizeSlug,
+    status: "active",
+  })
+    .populate({
+      path: "categoryId",
+      match: { isActive: true },
+      select: "name slug gender isActive",
     })
     .lean();
+
+  return withCategory(product);
 };
 
 export const getProductDetailsForAdminDAO = async (id) => {
-    return await Product.findById(id)
-        .populate({
-            path: "categoryId",
-            match: { isActive: true },
-            select: "name slug isActive",
-        })
-        .lean();
+  const product = await Product.findById(id)
+    .populate({
+      path: "categoryId",
+      select: "name slug gender isActive",
+    })
+    .lean();
+
+  return withCategory(product);
 };
 
 export const findActiveProductByIdDAO = async (id) => {
-    return await Product.findOne({ _id: id, status: "active" });
-}
+  return await Product.findOne({ _id: id, status: "active" });
+};
 
 export const findProductByIdDAO = async (id) => {
-    return await Product.findOne({ _id: id });
-}
+  return await Product.findOne({ _id: id });
+};
 
 export const findByIdAndDeleteDAO = async (id) => {
-    return await Product.findByIdAndDelete(id);
-}
+  return await Product.findByIdAndDelete(id);
+};
 
 export const updateProductDAO = async ({ id, updateData }) => {
-    return await Product.findByIdAndUpdate(
-        id,
-        { $set: updateData },
-        {
-            new: true,
-            runValidators: true,
-        }
-    );
+  return await Product.findByIdAndUpdate(
+    id,
+    { $set: updateData },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
 };
 
 export const getRelatedProductsDAO = async ({
-    productId,
-    categoryId,
-    brand,
-    tags = [],
-    limit,
+  productId,
+  categoryId,
+  brand,
+  tags = [],
+  limit,
 }) => {
-    return Product.aggregate([
-        {
-            $match: {
-                _id: { $ne: productId },
-                categoryId,
-                status: "active",
-            },
+  return Product.aggregate([
+    {
+      $match: {
+        _id: { $ne: productId },
+        categoryId,
+        status: "active",
+      },
+    },
+    {
+      $addFields: {
+        sharedTags: {
+          $size: {
+            $setIntersection: [{ $ifNull: ["$tags", []] }, { $literal: tags }],
+          },
         },
-        {
-            $addFields: {
-                sharedTags: {
-                    $size: {
-                        $setIntersection: [
-                            { $ifNull: ["$tags", []] },
-                            { $literal: tags },
-                        ],
-                    },
-                },
-                sameBrand: { $cond: [{ $eq: ["$brand", brand] }, 1, 0] },
-            },
+        sameBrand: { $cond: [{ $eq: ["$brand", brand] }, 1, 0] },
+      },
+    },
+    {
+      $sort: {
+        sharedTags: -1,
+        sameBrand: -1,
+        isFeatured: -1,
+        "ratings.average": -1,
+        createdAt: -1,
+      },
+    },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "categoryId",
+        foreignField: "_id",
+        as: "category",
+      },
+    },
+    { $unwind: "$category" },
+    {
+      $project: {
+        title: 1,
+        slug: 1,
+        description: 1,
+        price: 1,
+        compareAtPrice: 1,
+        images: 1,
+        variants: 1,
+        ratings: 1,
+        isFeatured: 1,
+        brand: 1,
+        category: {
+          _id: "$category._id",
+          name: "$category.name",
+          slug: "$category.slug",
+          gender: "$category.gender",
         },
-        {
-            $sort: {
-                sharedTags: -1,
-                sameBrand: -1,
-                isFeatured: -1,
-                "ratings.average": -1,
-                createdAt: -1,
-            },
-        },
-        { $limit: limit },
-        {
-            $lookup: {
-                from: "categories",
-                localField: "categoryId",
-                foreignField: "_id",
-                as: "category",
-            },
-        },
-        { $unwind: "$category" },
-        {
-            $project: {
-                title: 1,
-                slug: 1,
-                description: 1,
-                price: 1,
-                compareAtPrice: 1,
-                images: 1,
-                variants: 1,
-                ratings: 1,
-                isFeatured: 1,
-                brand:1,
-                category: {
-                    name: "$category.name",
-                    slug: "$category.slug",
-                },
-            },
-        },
-    ]);
+      },
+    },
+  ]);
 };
 
 export const getFeaturedProductsDAO = async (limit) => {
-    return Product.aggregate([
-        {
-            $match: {
-                status: "active",
-                isFeatured: true,
-            },
+  return Product.aggregate([
+    {
+      $match: {
+        status: "active",
+        isFeatured: true,
+      },
+    },
+    { $sort: { createdAt: -1 } },
+    {
+      $lookup: {
+        from: "categories",
+        localField: "categoryId",
+        foreignField: "_id",
+        as: "category",
+      },
+    },
+    { $unwind: "$category" },
+    { $match: { "category.isActive": true } },
+    { $limit: limit },
+    {
+      $project: {
+        title: 1,
+        slug: 1,
+        description: 1,
+        price: 1,
+        compareAtPrice: 1,
+        images: 1,
+        variants: 1,
+        ratings: 1,
+        isFeatured: 1,
+        brand: 1,
+        category: {
+          _id: "$category._id",
+          name: "$category.name",
+          slug: "$category.slug",
+          gender: "$category.gender",
         },
-        { $sort: { createdAt: -1 } },
-        {
-            $lookup: {
-                from: "categories",
-                localField: "categoryId",
-                foreignField: "_id",
-                as: "category",
-            },
-        },
-        { $unwind: "$category" },
-        { $match: { "category.isActive": true } },
-        { $limit: limit },
-        {
-            $project: {
-                title: 1,
-                slug: 1,
-                description: 1,
-                price: 1,
-                compareAtPrice: 1,
-                images: 1,
-                variants: 1,
-                ratings: 1,
-                isFeatured: 1,
-                brand: 1,
-                category: {
-                    name: "$category.name",
-                    slug: "$category.slug",
-                },
-            },
-        },
-    ]);
+      },
+    },
+  ]);
 };

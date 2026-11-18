@@ -43,7 +43,6 @@ export const createAddressController = async (req, res) => {
     if (req.body[field] !== undefined) data[field] = req.body[field];
   }
 
-  // The first address is always the default
   const makeDefault = count === 0 || req.body.isDefault === true;
 
   if (makeDefault) {
@@ -117,7 +116,6 @@ export const setDefaultAddressController = async (req, res) => {
   }
 
   if (!existing.isDefault) {
-    // Clear first, then set, so the unique index is never violated
     await unsetDefaultAddressesDAO(userId);
   }
 
@@ -129,8 +127,9 @@ export const setDefaultAddressController = async (req, res) => {
 // Delete address
 export const deleteAddressController = async (req, res) => {
   const userId = req.user._id;
+  const { id } = req.params;
 
-  const deleted = await deleteAddressDAO({ userId, id: req.params.id });
+  const deleted = await deleteAddressDAO({ userId, id });
 
   if (!deleted) {
     throw new AppError(404, "Address not found");

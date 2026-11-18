@@ -30,7 +30,6 @@ export const deleteAddressDAO = async ({ userId, id }) => {
     return await Address.findOneAndDelete({ _id: id, user: userId }).lean();
 };
 
-// Clear the default flag on every address of this user
 export const unsetDefaultAddressesDAO = async (userId) => {
     return await Address.updateMany(
         { user: userId, isDefault: true },
