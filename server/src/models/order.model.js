@@ -138,12 +138,15 @@ const statusHistorySchema = new mongoose.Schema(
   { _id: false },
 );
 
-const paymentSchema = new mongoose.Schema({
-  razorpayOrderId: { type: String },
-  razorpayPaymentId: { type: String },
-  paidAt: { type: Date },
-  refundId: { type: String },
-});
+const paymentSchema = new mongoose.Schema(
+  {
+    razorpayOrderId: { type: String },
+    razorpayPaymentId: { type: String },
+    paidAt: { type: Date },
+    refundId: { type: String },
+  },
+  { _id: false },
+);
 
 const orderSchema = new mongoose.Schema(
   {
@@ -180,6 +183,7 @@ const orderSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: PAYMENT_STATUSES,
+      default: "pending",
     },
     payment: {
       type: paymentSchema,

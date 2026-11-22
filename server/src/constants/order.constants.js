@@ -16,3 +16,9 @@ export const PAYMENT_STATUSES = [
   "refund_pending",
   "refunded",
 ];
+
+export const PAYMENT_WINDOW_MINUTES = 15;
+
+export const SHIPPING_FEE = 99;
+
+export const FREE_SHIPPING_THRESHOLD = 999;
