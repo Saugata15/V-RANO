@@ -11,6 +11,8 @@ import addressRoutes from "../routes/address.route.js";
 import orderRoutes from '../routes/order.route.js'
 import { errorHandler } from '../middlewares/error.middleware.js';
 import passport from '../config/passport.js';
+import asyncHandler from '../utils/asyncHandler.js';
+import { razorpayWebhookController } from '../controllers/payment.controller.js';
 
 const app = express();
 
@@ -24,6 +26,13 @@ app.use(cors({
         "X-CSRF-Token",
     ],
 }));
+
+app.post(
+  "/api/payments/razorpay/webhook",
+  express.raw({ type: "application/json" }),
+  asyncHandler(razorpayWebhookController),
+);
+
 app.use(express.json());
 app.use(cookieParser());
 app.use(passport.initialize());

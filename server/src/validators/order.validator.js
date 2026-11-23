@@ -95,3 +95,13 @@ export const updateOrderStatusValidator = [
     .trim()
     .isLength({ max: 200 }).withMessage("Note must be under 200 characters"),
 ];
+
+export const cancelOrderValidator = [
+  orderIdParam,
+
+  body("reason")
+    .optional()
+    .isString().withMessage("Reason must be a string").bail()
+    .trim()
+    .isLength({ max: 200 }).withMessage("Reason must be under 200 characters"),
+];

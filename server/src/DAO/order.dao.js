@@ -176,3 +176,12 @@ export const transitionOrderStatusDAO = async ({
   );
 };
 
+export const findExpiredPendingOrdersDAO = async (now = new Date()) => {
+  return await Order.find({
+    orderStatus: "pending_payment",
+    paymentExpiresAt: { $lte: now },
+  })
+    .select("_id")
+    .limit(50)
+    .lean();
+};

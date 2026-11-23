@@ -115,6 +115,15 @@ const refundOrderPayment = async (order, paymentId) => {
   }
 };
 
+// Call after cancelling an order. Does nothing for COD or unpaid orders.
+export const refundIfPaid = async (order) => {
+  if (order.paymentMethod === "razorpay" && order.paymentStatus === "paid") {
+    return await refundOrderPayment(order);
+  }
+
+  return order;
+};
+
 export const settleRazorpayPayment = async ({
   razorpayOrderId,
   razorpayPaymentId,
@@ -142,3 +151,4 @@ export const settleRazorpayPayment = async ({
 
   return { status: "refunded", order: refundedOrder };
 };
+

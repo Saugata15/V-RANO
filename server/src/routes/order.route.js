@@ -2,6 +2,7 @@ import { Router } from "express";
 import asyncHandler from "../utils/asyncHandler.js";
 import { requireAdmin, requireAuth } from "../middlewares/auth.middleware.js";
 import {
+  cancelMyOrderController,
   getAllOrdersForAdminController,
   getMyOrderDetailsController,
   getMyOrdersController,
@@ -12,6 +13,7 @@ import {
   verifyOrderPaymentController,
 } from "../controllers/order.controller.js";
 import {
+  cancelOrderValidator,
   getAllOrdersForAdminValidator,
   getMyOrdersValidator,
   orderIdValidator,
@@ -96,6 +98,15 @@ router.post(
   verifyOrderPaymentValidator,
   validate,
   asyncHandler(verifyOrderPaymentController),
+);
+
+// Cancel order
+router.patch(
+  "/:id/cancel",
+  asyncHandler(requireAuth),
+  cancelOrderValidator,
+  validate,
+  asyncHandler(cancelMyOrderController),
 );
 
 export default router;

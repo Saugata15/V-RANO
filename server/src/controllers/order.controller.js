@@ -19,10 +19,12 @@ import {
   ORDER_STATUS_TRANSITIONS,
   PAYMENT_WINDOW_MINUTES,
   SHIPPING_FEE,
+  USER_CANCELLABLE_STATUSES,
 } from "../constants/order.constants.js";
 import {
   buildCheckoutPayload,
   createRazorpayOrder,
+  refundIfPaid,
   settleRazorpayPayment,
   verifyPaymentSignature,
 } from "../services/payment.services.js";
@@ -437,4 +439,44 @@ export const updateOrderStatusController = async (req, res) => {
   sendSuccess(res, 200, "Order status updated successfully", {
     order: finalOrder,
   });
+};
+
+// Cancel my order (until it ships). Paid online orders are refunded.
+export const cancelMyOrderController = async (req, res) => {
+  const { id } = req.params;
+  const reason = req.body?.reason ?? "";
+
+  const cancelledOrder = await transitionOrderStatusDAO({
+    orderId: id,
+    userId: req.user._id,
+    fromStatuses: USER_CANCELLABLE_STATUSES,
+    toStatus: "cancelled",
+    note: reason || "Cancelled by customer",
+    extraSet: {
+      cancelledAt: new Date(),
+      cancelReason: reason,
+      paymentExpiresAt: null,
+    },
+  });
+
+  if (!cancelledOrder) {
+    const existing = await findOrderByIdForUserDAO({
+      orderId: id,
+      userId: req.user._id,
+    });
+
+    if (!existing) {
+      throw new AppError(404, "Order not found");
+    }
+
+    throw new AppError(
+      409,
+      `Order cannot be cancelled once it is ${existing.orderStatus}`,
+    );
+  }
+
+  await restoreItemsStockDAO(cancelledOrder.items);
+  const order = await refundIfPaid(cancelledOrder);
+
+  sendSuccess(res, 200, "Order cancelled successfully", { order });
 };
