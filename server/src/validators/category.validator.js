@@ -1,5 +1,5 @@
 import { body, param, query } from "express-validator"
-import { GENDERS } from "../constants/category.constants.js";
+import { GENDERS, SIZE_TYPES } from "../constants/category.constants.js";
 
 export const createCategoryValidator = [
     body("name")
@@ -13,6 +13,13 @@ export const createCategoryValidator = [
         .trim()
         .toLowerCase()
         .isIn(GENDERS).withMessage(`Gender must be one of: ${GENDERS.join(", ")}`),
+
+    body("sizeType")
+        .optional()
+        .isString().withMessage("Size type should be a string").bail()
+        .trim()
+        .toLowerCase()
+        .isIn(SIZE_TYPES).withMessage(`Size type must be one of: ${SIZE_TYPES.join(", ")}`),
 
     body("description")
         .optional()

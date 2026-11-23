@@ -19,6 +19,7 @@ import {
 } from "../services/storage.services.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 import { AppError } from "../utils/AppError.js";
+import { assertVariantSizes } from "../utils/product.utils.js";
 import { createSlug } from "../utils/slug.utils.js";
 
 // create product
@@ -26,6 +27,7 @@ export const createProductController = async (req, res) => {
   const {
     title,
     description,
+    fit,
     categoryId,
     brand,
     price,
@@ -44,6 +46,8 @@ export const createProductController = async (req, res) => {
   if (!category || !category.isActive) {
     throw new AppError(404, "Active category not found");
   }
+
+  assertVariantSizes({ category, variants });
 
   const existingProduct = await findProductBySlugDAO(slug);
 
@@ -75,6 +79,7 @@ export const createProductController = async (req, res) => {
       title: normalizedTitle,
       slug,
       description: description.trim(),
+      fit,
       categoryId,
       brand: brand.trim(),
       price,
@@ -248,6 +253,7 @@ export const updateProductController = async (req, res) => {
   const {
     title,
     description,
+    fit,
     categoryId,
     brand,
     price,
@@ -289,6 +295,12 @@ export const updateProductController = async (req, res) => {
     updateData.description = description.trim();
   }
 
+  if (fit !== undefined) {
+    updateData.fit = fit.trim();
+  }
+
+  let targetCategory;
+
   if (categoryId !== undefined) {
     const category = await findCategoryByIdDAO(categoryId);
 
@@ -296,7 +308,18 @@ export const updateProductController = async (req, res) => {
       throw new AppError(404, "Active category not found");
     }
 
+    targetCategory = category;
     updateData.categoryId = categoryId;
+  }
+
+  // Re-check sizes whenever the category or the variants change
+  if (variants !== undefined || categoryId !== undefined) {
+    targetCategory ??= await findCategoryByIdDAO(product.categoryId);
+
+    assertVariantSizes({
+      category: targetCategory,
+      variants: variants ?? product.variants,
+    });
   }
 
   if (brand !== undefined) {

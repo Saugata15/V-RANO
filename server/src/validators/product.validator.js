@@ -4,6 +4,7 @@ import {
     PRODUCT_COLORS,
     MAX_TAGS_PER_PRODUCT,
     PRODUCT_TAGS,
+    PRODUCT_FITS,
 } from "../constants/product.constants.js";
 import { GENDERS } from "../constants/category.constants.js";
 
@@ -18,7 +19,14 @@ export const createProductValidator = [
         .isString().withMessage("Description must be a string").bail()
         .trim()
         .notEmpty().withMessage("Description is required").bail()
-        .isLength({ min: 20, max: 200 }).withMessage("Description must be 20-200 characters"),
+        .isLength({ min: 20, max: 1000 }).withMessage("Description must be 20-1000 characters"),
+
+    body("fit")
+        .optional()
+        .isString().withMessage("Fit must be a string").bail()
+        .trim()
+        .toLowerCase()
+        .isIn(PRODUCT_FITS).withMessage(`Fit must be one of: ${PRODUCT_FITS.join(", ")}`),
 
     body("categoryId")
         .isMongoId().withMessage("Invalid category ID"),
@@ -82,7 +90,7 @@ export const createProductValidator = [
 
             const combinations = variants.map(
                 ({ size, color }) =>
-                    `${size?.trim().toLowerCase()}-${color?.trim().toLowerCase()}`
+                    `${size?.trim?.().toLowerCase()}-${color?.trim().toLowerCase()}`
             );
 
             if (new Set(combinations).size !== combinations.length) {
@@ -163,10 +171,12 @@ export const getActiveProductsValidator = [
 
     query("size")
         .optional()
+        .isString().withMessage("Size must be a string").bail()
         .isIn(PRODUCT_SIZES).withMessage("Invalid product size"),
 
     query("color")
         .optional()
+        .isString().withMessage("Color must be a string").bail()
         .isIn(PRODUCT_COLORS).withMessage("Invalid product color"),
 
     query("sort")
@@ -220,8 +230,15 @@ export const updateProductValidator = [
         .isString().withMessage("Description must be a string").bail()
         .trim()
         .notEmpty().withMessage("Description cannot be empty").bail()
-        .isLength({ min: 20, max: 200 }).withMessage("Description must be between 20 and 200 characters"),
+        .isLength({ min: 20, max: 1000 }).withMessage("Description must be between 20 and 1000 characters"),
 
+    body("fit")
+        .optional()
+        .isString().withMessage("Fit must be a string").bail()
+        .trim()
+        .toLowerCase()
+        .isIn(PRODUCT_FITS).withMessage(`Fit must be one of: ${PRODUCT_FITS.join(", ")}`),
+        
     body("categoryId")
         .optional()
         .isMongoId().withMessage("Invalid category ID"),
@@ -244,7 +261,7 @@ export const updateProductValidator = [
 
     body("tags")
         .optional()
-        .isArray({max:MAX_TAGS_PER_PRODUCT}).withMessage("Tags must be an array"),
+        .isArray({ max: MAX_TAGS_PER_PRODUCT }).withMessage("Tags must be an array"),
 
     body("tags.*")
         .optional()

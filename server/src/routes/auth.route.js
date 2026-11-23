@@ -26,6 +26,7 @@ import {
 import { AppError } from "../utils/AppError.js";
 import passport from "../config/passport.js";
 import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
+import config from "../config/config.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -128,7 +129,7 @@ router.get(
   asyncHandler(validateGoogleLinkState),
   passport.authenticate("google", {
     session: false,
-    failureRedirect: "http://localhost:5173/account/security?googleLink=failed",
+    failureRedirect: `${config.CLIENT_URL}/account/security?googleLink=failed`,
   }),
   asyncHandler(googleLinkCallbackController),
 );

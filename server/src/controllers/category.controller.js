@@ -20,7 +20,7 @@ import { countProductsByCategoryDAO } from "../DAO/product.dao.js";
 
 // Create category by Admin
 export const createCategory = async (req, res) => {
-  const { name, gender, description, isActive } = req.body;
+  const { name, gender,sizeType, description, isActive } = req.body;
   const normalizedName = name.trim().toLowerCase();
   const slug = createSlug(`${gender}-${normalizedName}`);
 
@@ -48,6 +48,7 @@ export const createCategory = async (req, res) => {
       name: normalizedName,
       slug,
       gender,
+      sizeType,
       description,
       image: uploadedFile?.url || "",
       imageId: uploadedFile?.fileId || null,

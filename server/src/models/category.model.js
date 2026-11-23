@@ -17,6 +17,11 @@ const categorySchema = new mongoose.Schema(
       enum: GENDERS,
       lowercase: true,
     },
+    sizeType: {
+      type: String,
+      enum: SIZE_TYPES,
+      default: "apparel",
+    },
     slug: {
       type: String,
       required: true,

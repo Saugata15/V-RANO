@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import {
   PRODUCT_COLORS,
+  PRODUCT_FITS,
   PRODUCT_SIZES,
 } from "../constants/product.constants.js";
 
@@ -81,7 +82,12 @@ const productSchema = new mongoose.Schema(
       required: true,
       trim: true,
       minlength: 20,
-      maxlength: 200,
+      maxlength: 1000,
+    },
+    fit: {
+      type: String,
+      enum: PRODUCT_FITS,
+      default: undefined,
     },
     categoryId: {
       type: mongoose.Schema.Types.ObjectId,
