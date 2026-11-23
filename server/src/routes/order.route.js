@@ -1,17 +1,22 @@
 import { Router } from "express";
 import asyncHandler from "../utils/asyncHandler.js";
-import { requireAuth } from "../middlewares/auth.middleware.js";
+import { requireAdmin, requireAuth } from "../middlewares/auth.middleware.js";
 import {
+  getAllOrdersForAdminController,
   getMyOrderDetailsController,
   getMyOrdersController,
+  getOrderDetailsForAdminController,
   getOrderPaymentController,
   placeOrderController,
+  updateOrderStatusController,
   verifyOrderPaymentController,
 } from "../controllers/order.controller.js";
 import {
+  getAllOrdersForAdminValidator,
   getMyOrdersValidator,
   orderIdValidator,
   placeOrderValidator,
+  updateOrderStatusValidator,
   verifyOrderPaymentValidator,
 } from "../validators/order.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
@@ -34,6 +39,36 @@ router.get(
   getMyOrdersValidator,
   validate,
   asyncHandler(getMyOrdersController),
+);
+
+// Admin route to get all orders
+router.get(
+  "/admin",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  getAllOrdersForAdminValidator,
+  validate,
+  asyncHandler(getAllOrdersForAdminController),
+);
+
+// Admin route to get single order details
+router.get(
+  "/admin/:id",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  orderIdValidator,
+  validate,
+  asyncHandler(getOrderDetailsForAdminController),
+);
+
+// Admin route to get update single order status
+router.patch(
+  "/admin/:id/status",
+  asyncHandler(requireAuth),
+  requireAdmin,
+  updateOrderStatusValidator,
+  validate,
+  asyncHandler(updateOrderStatusController),
 );
 
 // "Pay now" for an order still waiting for payment

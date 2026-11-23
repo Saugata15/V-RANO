@@ -119,3 +119,60 @@ export const setPaymentStatusDAO = async ({
     { new: true },
   );
 };
+
+export const getAllOrdersForAdminDAO = async ({
+  skip,
+  limit,
+  status,
+  search,
+}) => {
+  const filter = {};
+
+  if (status) filter.orderStatus = status;
+
+  if (search) {
+    const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    filter.orderNumber = { $regex: `^${escapedSearch}`, $options: "i" };
+  }
+
+  const [orders, totalOrders] = await Promise.all([
+    Order.find(filter)
+      .select("-statusHistory")
+      .populate("user", "name email")
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Order.countDocuments(filter),
+  ]);
+
+  return { orders, totalOrders };
+};
+
+export const getOrderDetailsForAdminDAO = async (orderId) => {
+  return await Order.findById(orderId).populate("user", "name email").lean();
+};
+
+export const transitionOrderStatusDAO = async ({
+  orderId,
+  userId,
+  fromStatuses,
+  toStatus,
+  note = "",
+  extraSet = {},
+}) => {
+  const filter = { _id: orderId, orderStatus: { $in: fromStatuses } };
+  if (userId) filter.user = userId;
+
+  return await Order.findOneAndUpdate(
+    filter,
+    {
+      $set: { orderStatus: toStatus, ...extraSet },
+      $push: {
+        statusHistory: { status: toStatus, note, changedAt: new Date() },
+      },
+    },
+    { new: true, runValidators: true },
+  );
+};
+

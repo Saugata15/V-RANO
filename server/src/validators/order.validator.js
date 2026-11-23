@@ -67,3 +67,31 @@ export const verifyOrderPaymentValidator = [
     .trim()
     .isLength({ min: 20, max: 200 }).withMessage("Invalid razorpay_signature"),
 ];
+
+export const getAllOrdersForAdminValidator = [
+  pageQuery,
+  limitQuery,
+  statusQuery,
+
+  query("search")
+    .optional()
+    .isString().withMessage("Search must be a string").bail()
+    .trim()
+    .isLength({ max: 40 }).withMessage("Search cannot exceed 40 characters"),
+];
+
+export const updateOrderStatusValidator = [
+  orderIdParam,
+
+  body("status")
+    .isString().withMessage("Status must be a string").bail()
+    .trim()
+    .toLowerCase()
+    .isIn(ORDER_STATUSES).withMessage(`Status must be one of: ${ORDER_STATUSES.join(", ")}`),
+
+  body("note")
+    .optional()
+    .isString().withMessage("Note must be a string").bail()
+    .trim()
+    .isLength({ max: 200 }).withMessage("Note must be under 200 characters"),
+];

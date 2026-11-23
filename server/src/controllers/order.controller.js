@@ -2,16 +2,21 @@ import crypto from "node:crypto";
 import {
   createOrderDAO,
   decrementVariantStockDAO,
+  findOrderByIdDAO,
   findOrderByIdForUserDAO,
   findUserAddressDAO,
+  getAllOrdersForAdminDAO,
+  getOrderDetailsForAdminDAO,
   getOrdersByUserDAO,
   restoreItemsStockDAO,
+  transitionOrderStatusDAO,
 } from "../DAO/order.dao.js";
 import { AppError } from "../utils/AppError.js";
 import { clearCartDAO, getCartDAO } from "../DAO/cart.dao.js";
 import { MAX_QUANTITY_PER_ITEM } from "../constants/product.constants.js";
 import {
   FREE_SHIPPING_THRESHOLD,
+  ORDER_STATUS_TRANSITIONS,
   PAYMENT_WINDOW_MINUTES,
   SHIPPING_FEE,
 } from "../constants/order.constants.js";
@@ -336,5 +341,100 @@ export const verifyOrderPaymentController = async (req, res) => {
 
   sendSuccess(res, 200, "Payment verified successfully", {
     order: result.order,
+  });
+};
+
+// Admin views Orders list
+export const getAllOrdersForAdminController = async (req, res) => {
+  const { page = 1, limit = 20, status, search } = req.query;
+
+  const pageNumber = Number(page);
+  const limitNumber = Number(limit);
+  const skip = (pageNumber - 1) * limitNumber;
+
+  const { orders, totalOrders } = await getAllOrdersForAdminDAO({
+    skip,
+    limit: limitNumber,
+    status,
+    search,
+  });
+
+  sendSuccess(res, 200, "Orders fetched successfully", {
+    orders,
+    pagination: {
+      currentPage: pageNumber,
+      totalPages: Math.ceil(totalOrders / limitNumber),
+      totalOrders,
+      limit: limitNumber,
+    },
+  });
+};
+
+// Admin views single Order Details
+export const getOrderDetailsForAdminController = async (req, res) => {
+  const order = await getOrderDetailsForAdminDAO(req.params.id);
+
+  if (!order) {
+    throw new AppError(404, "Order not found");
+  }
+
+  sendSuccess(res, 200, "Order fetched successfully", { order });
+};
+
+// Admin updates order status
+export const updateOrderStatusController = async (req, res) => {
+  const { id } = req.params;
+  const { status, note = "" } = req.body;
+
+  const order = await findOrderByIdDAO(id);
+
+  if (!order) {
+    throw new AppError(404, "Order not found");
+  }
+
+  const allowed = ORDER_STATUS_TRANSITIONS[order.orderStatus] ?? [];
+
+  if (!allowed.includes(status)) {
+    throw new AppError(
+      400,
+      `Cannot change order from ${order.orderStatus} to ${status}`,
+    );
+  }
+
+  const extraSet = {};
+
+  if (status === "delivered") {
+    extraSet.deliveredAt = new Date();
+    // Cash on delivery: payment is collected at the door
+    if (order.paymentMethod === "cod") extraSet.paymentStatus = "paid";
+  }
+
+  if (status === "cancelled") {
+    extraSet.cancelledAt = new Date();
+    extraSet.cancelReason = note;
+  }
+
+  // Only succeeds if the status hasn't changed since we read it
+  const updatedOrder = await transitionOrderStatusDAO({
+    orderId: id,
+    fromStatuses: [order.orderStatus],
+    toStatus: status,
+    note,
+    extraSet,
+  });
+
+  if (!updatedOrder) {
+    throw new AppError(409, "Order status changed. Please refresh and retry.");
+  }
+
+  let finalOrder = updatedOrder;
+
+  if (status === "cancelled") {
+    await restoreItemsStockDAO(updatedOrder.items);
+    finalOrder = await refundIfPaid(updatedOrder);
+  }
+
+  sendSuccess(res, 200, "Order status updated successfully", {
+    order: finalOrder,
   });
 };
