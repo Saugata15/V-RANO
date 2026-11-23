@@ -74,6 +74,18 @@ export const verifyPaymentSignature = ({ orderId, paymentId, signature }) => {
   return safeEqual(expected, signature);
 };
 
+export const verifyWebhookSignature = (rawBody, signature) => {
+  const secret = config.RAZORPAY_WEBHOOK_SECRET;
+  if (!secret) return false;
+
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody)
+    .digest("hex");
+
+  return safeEqual(expected, signature);
+};
+
 const refundOrderPayment = async (order, paymentId) => {
   const razorpayPaymentId = paymentId ?? order.payment?.razorpayPaymentId;
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import asyncHandler from "../utils/asyncHandler.js";
 import { requireAuth } from "../middlewares/auth.middleware.js";
 import {
+  getMyOrderDetailsController,
   getMyOrdersController,
   getOrderPaymentController,
   placeOrderController,
@@ -42,6 +43,15 @@ router.post(
   orderIdValidator,
   validate,
   asyncHandler(getOrderPaymentController),
+);
+
+// Customer route for GET order Details
+router.get(
+  "/:id",
+  asyncHandler(requireAuth),
+  orderIdValidator,
+  validate,
+  asyncHandler(getMyOrderDetailsController),
 );
 
 // Verify the payment after the Razorpay popup succeeds
