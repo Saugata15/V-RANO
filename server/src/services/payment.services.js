@@ -1,6 +1,8 @@
+import crypto from 'node:crypto';
 import Razorpay from "razorpay";
 import config from "../config/config.js";
 import { AppError } from "../utils/AppError.js";
+import { findOrderByIdDAO, findOrderByRazorpayOrderIdDAO, markOrderPaidDAO, setPaymentStatusDAO } from '../DAO/order.dao.js';
 
 let client;
 
@@ -59,3 +61,72 @@ export const buildCheckoutPayload = (order) => ({
     contact: order.shippingAddress.phone,
   },
 });
+
+export const verifyPaymentSignature = ({ orderId, paymentId, signature }) => {
+  const secret = config.RAZORPAY_KEY_SECRET;
+  if (!secret) return false;
+
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(`${orderId}|${paymentId}`)
+    .digest("hex");
+
+  return safeEqual(expected, signature);
+};
+
+const refundOrderPayment = async (order, paymentId) => {
+  const razorpayPaymentId = paymentId ?? order.payment?.razorpayPaymentId;
+
+  if (!razorpayPaymentId) return order;
+
+  await setPaymentStatusDAO({
+    orderId: order._id,
+    paymentStatus: "refund_pending",
+    extraSet: { "payment.razorpayPaymentId": razorpayPaymentId },
+  });
+
+  try {
+    const refund = await getClient().payments.refund(razorpayPaymentId, {
+      amount: toPaise(order.totalAmount),
+      notes: { orderNumber: order.orderNumber },
+    });
+
+    return await setPaymentStatusDAO({
+      orderId: order._id,
+      paymentStatus: "refunded",
+      extraSet: { "payment.refundId": refund.id },
+    });
+  } catch (error) {
+    // Stays "refund_pending" so an admin can see it and retry
+    console.error(`Refund failed for order ${order.orderNumber}`, error);
+    return await findOrderByIdDAO(order._id);
+  }
+};
+
+export const settleRazorpayPayment = async ({
+  razorpayOrderId,
+  razorpayPaymentId,
+}) => {
+  const order = await findOrderByRazorpayOrderIdDAO(razorpayOrderId);
+
+  if (!order) return { status: "order_not_found" };
+
+  if (order.paymentStatus === "paid") {
+    return { status: "already_paid", order };
+  }
+
+  if (["refund_pending", "refunded"].includes(order.paymentStatus)) {
+    return { status: "already_refunded", order };
+  }
+
+  const paidOrder = await markOrderPaidDAO({
+    orderId: order._id,
+    razorpayPaymentId,
+  });
+
+  if (paidOrder) return { status: "paid", order: paidOrder };
+
+  const refundedOrder = await refundOrderPayment(order, razorpayPaymentId);
+
+  return { status: "refunded", order: refundedOrder };
+};

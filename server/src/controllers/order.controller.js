@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
 import {
-    createOrderDAO,
+  createOrderDAO,
   decrementVariantStockDAO,
+  findOrderByIdForUserDAO,
   findUserAddressDAO,
+  getOrdersByUserDAO,
   restoreItemsStockDAO,
 } from "../DAO/order.dao.js";
 import { AppError } from "../utils/AppError.js";
@@ -13,7 +15,12 @@ import {
   PAYMENT_WINDOW_MINUTES,
   SHIPPING_FEE,
 } from "../constants/order.constants.js";
-import { buildCheckoutPayload, createRazorpayOrder } from "../services/payment.services.js";
+import {
+  buildCheckoutPayload,
+  createRazorpayOrder,
+  settleRazorpayPayment,
+  verifyPaymentSignature,
+} from "../services/payment.services.js";
 import { sendSuccess } from "../utils/apiResponse.js";
 
 const round = (value) => Math.round(value * 100) / 100;
@@ -24,6 +31,7 @@ const generateOrderNumber = () => {
   return `VRN-${date}-${random}`;
 };
 
+// Place order from the logged-in user's cart
 export const placeOrderController = async (req, res) => {
   const userId = req.user._id;
   const { addressId, paymentMethod } = req.body;
@@ -202,4 +210,131 @@ export const placeOrderController = async (req, res) => {
   }
 
   sendSuccess(res, 201, "Order placed successfully", { order });
+};
+
+// "Pay now" for an order that is still waiting for payment
+export const getOrderPaymentController = async (req, res) => {
+  const order = await findOrderByIdForUserDAO({
+    orderId: req.params.id,
+    userId: req.user._id,
+  });
+
+  if (!order) {
+    throw new AppError(404, "Order not found");
+  }
+
+  if (
+    order.paymentMethod !== "razorpay" ||
+    order.orderStatus !== "pending_payment"
+  ) {
+    throw new AppError(409, "This order is not waiting for payment");
+  }
+
+  if (order.paymentExpiresAt && order.paymentExpiresAt <= new Date()) {
+    throw new AppError(
+      409,
+      "The payment window has expired. Please place the order again.",
+    );
+  }
+
+  sendSuccess(res, 200, "Payment details fetched", {
+    payment: buildCheckoutPayload(order),
+  });
+};
+
+// My orders (list)
+export const getMyOrdersController = async (req, res) => {
+  const userId = req.user._id;
+  const { page = 1, limit = 10, status } = req.query;
+
+  const pageNumber = Number(page);
+  const limitNumber = Number(limit);
+  const skip = (pageNumber - 1) * limitNumber;
+
+  const { orders, totalOrders } = await getOrdersByUserDAO({
+    userId,
+    status,
+    skip,
+    limit: limitNumber,
+  });
+
+  sendSuccess(res, 200, "Orders fetched successfully", {
+    orders,
+    pagination: {
+      currentPage: pageNumber,
+      totalPages: Math.ceil(totalOrders / limitNumber),
+      totalOrders,
+      limit: limitNumber,
+    },
+  });
+};
+
+// My order details
+export const getMyOrderDetailsController = async (req, res) => {
+  const order = await findOrderByIdForUserDAO({
+    orderId: req.params.id,
+    userId: req.user._id,
+  });
+
+  if (!order) {
+    throw new AppError(404, "Order not found");
+  }
+
+  sendSuccess(res, 200, "Order fetched successfully", { order });
+};
+
+// Called by the frontend after the Razorpay popup succeeds
+export const verifyOrderPaymentController = async (req, res) => {
+  const { id } = req.params;
+  const {
+    razorpay_order_id: razorpayOrderId,
+    razorpay_payment_id: razorpayPaymentId,
+    razorpay_signature: razorpaySignature,
+  } = req.body;
+
+  const order = await findOrderByIdForUserDAO({
+    orderId: id,
+    userId: req.user._id,
+  });
+
+  if (!order) {
+    throw new AppError(404, "Order not found");
+  }
+
+  if (
+    order.paymentMethod !== "razorpay" ||
+    order.payment?.razorpayOrderId !== razorpayOrderId
+  ) {
+    throw new AppError(400, "Payment does not match this order");
+  }
+
+  const isValid = verifyPaymentSignature({
+    orderId: razorpayOrderId,
+    paymentId: razorpayPaymentId,
+    signature: razorpaySignature,
+  });
+
+  if (!isValid) {
+    throw new AppError(400, "Payment verification failed");
+  }
+
+  const result = await settleRazorpayPayment({
+    razorpayOrderId,
+    razorpayPaymentId,
+  });
+
+  if (result.status === "refunded" || result.status === "already_refunded") {
+    throw new AppError(
+      409,
+      "This order expired before the payment completed. Your payment will be refunded.",
+    );
+  }
+
+  if (result.status === "order_not_found") {
+    throw new AppError(404, "Order not found");
+  }
+
+  sendSuccess(res, 200, "Payment verified successfully", {
+    order: result.order,
+  });
 };
