@@ -7,6 +7,49 @@ const withCategory = (product) => {
   return { ...rest, category: categoryId ?? null };
 };
 
+export const categoryLookupStages = [
+  {
+    $lookup: {
+      from: "categories",
+      localField: "categoryId",
+      foreignField: "_id",
+      as: "category",
+    },
+  },
+  { $unwind: "$category" },
+];
+
+// Public product card. images exposes url/alt/isPrimary only (no storage fileId).
+export const PRODUCT_CARD_PROJECTION = {
+  title: 1,
+  slug: 1,
+  description: 1,
+  price: 1,
+  compareAtPrice: 1,
+  images: {
+    $map: {
+      input: "$images",
+      as: "image",
+      in: {
+        url: "$$image.url",
+        alt: "$$image.alt",
+        isPrimary: "$$image.isPrimary",
+      },
+    },
+  },
+  variants: 1,
+  ratings: 1,
+  isFeatured: 1,
+  brand: 1,
+  inStock: { $gt: [{ $sum: "$variants.stock" }, 0] },
+  category: {
+    _id: "$category._id",
+    name: "$category.name",
+    slug: "$category.slug",
+    gender: "$category.gender",
+  },
+};
+
 export const countProductsByCategoryDAO = async (categoryId) => {
   return Product.countDocuments({ categoryId });
 };
@@ -88,50 +131,16 @@ export const getActiveProductsDAO = async ({
   }
 
   const result = await Product.aggregate([
-    {
-      $match: filter,
-    },
-    {
-      $sort: sortQuery,
-    },
-    {
-      $lookup: {
-        from: "categories",
-        localField: "categoryId",
-        foreignField: "_id",
-        as: "category",
-      },
-    },
-    {
-      $unwind: "$category",
-    },
-    {
-      $match: categoryMatch,
-    },
+    { $match: filter },
+    { $sort: sortQuery },
+    ...categoryLookupStages,
+    { $match: categoryMatch },
     {
       $facet: {
         products: [
           { $skip: skip },
           { $limit: limit },
-          {
-            $project: {
-              title: 1,
-              slug: 1,
-              description: 1,
-              price: 1,
-              compareAtPrice: 1,
-              images: 1,
-              variants: 1,
-              ratings: 1,
-              isFeatured: 1,
-              category: {
-                _id: "$category._id",
-                name: "$category.name",
-                slug: "$category.slug",
-                gender: "$category.gender",
-              },
-            },
-          },
+          { $project: PRODUCT_CARD_PROJECTION },
         ],
         totalCount: [{ $count: "count" }],
       },
@@ -204,6 +213,7 @@ export const getProductDetailsDAO = async (slug) => {
     slug: normalizeSlug,
     status: "active",
   })
+    .select("-images.fileId")
     .populate({
       path: "categoryId",
       match: { isActive: true },
@@ -283,77 +293,18 @@ export const getRelatedProductsDAO = async ({
       },
     },
     { $limit: limit },
-    {
-      $lookup: {
-        from: "categories",
-        localField: "categoryId",
-        foreignField: "_id",
-        as: "category",
-      },
-    },
-    { $unwind: "$category" },
-    {
-      $project: {
-        title: 1,
-        slug: 1,
-        description: 1,
-        price: 1,
-        compareAtPrice: 1,
-        images: 1,
-        variants: 1,
-        ratings: 1,
-        isFeatured: 1,
-        brand: 1,
-        category: {
-          _id: "$category._id",
-          name: "$category.name",
-          slug: "$category.slug",
-          gender: "$category.gender",
-        },
-      },
-    },
+    ...categoryLookupStages,
+    { $project: PRODUCT_CARD_PROJECTION },
   ]);
 };
 
 export const getFeaturedProductsDAO = async (limit) => {
   return Product.aggregate([
-    {
-      $match: {
-        status: "active",
-        isFeatured: true,
-      },
-    },
+    { $match: { status: "active", isFeatured: true } },
     { $sort: { createdAt: -1 } },
-    {
-      $lookup: {
-        from: "categories",
-        localField: "categoryId",
-        foreignField: "_id",
-        as: "category",
-      },
-    },
-    { $unwind: "$category" },
+    ...categoryLookupStages,
     { $match: { "category.isActive": true } },
     { $limit: limit },
-    {
-      $project: {
-        title: 1,
-        slug: 1,
-        description: 1,
-        price: 1,
-        compareAtPrice: 1,
-        images: 1,
-        variants: 1,
-        ratings: 1,
-        isFeatured: 1,
-        brand: 1,
-        category: {
-          _id: "$category._id",
-          name: "$category.name",
-          slug: "$category.slug",
-          gender: "$category.gender",
-        },
-      },
-    },
+    { $project: PRODUCT_CARD_PROJECTION },
   ]);
 };

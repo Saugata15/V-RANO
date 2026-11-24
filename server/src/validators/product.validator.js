@@ -102,22 +102,6 @@ export const createProductValidator = [
             return true;
         }),
 
-    body("ratings")
-        .optional()
-        .isObject().withMessage("Ratings must be an object"),
-
-    body("ratings.average")
-        .if(body("ratings").exists())
-        .notEmpty().withMessage("Rating average is required").bail()
-        .isFloat({ min: 0, max: 5 }).withMessage("Rating average must be between 0 and 5")
-        .toFloat(),
-
-    body("ratings.count")
-        .if(body("ratings").exists())
-        .notEmpty().withMessage("Rating count is required").bail()
-        .isInt({ min: 0 }).withMessage("Rating count must be a non-negative integer")
-        .toInt(),
-
     body("isFeatured")
         .optional()
         .isBoolean().withMessage("isFeatured must be a boolean").bail()
@@ -301,39 +285,6 @@ export const updateProductValidator = [
         .if(body("variants").exists())
         .notEmpty().withMessage("Stock is required").bail()
         .isInt({ min: 0 }).withMessage("Stock must be a non-negative integer").bail()
-        .toInt(),
-
-    body("ratings")
-        .optional()
-        .custom((value) => {
-            if (
-                typeof value !== "object" ||
-                value === null ||
-                Array.isArray(value)
-            ) {
-                throw new Error("Ratings must be an object");
-            }
-
-            if (
-                !Object.hasOwn(value, "average") ||
-                !Object.hasOwn(value, "count")
-            ) {
-                throw new Error(
-                    "Ratings must contain average and count"
-                );
-            }
-
-            return true;
-        }),
-
-    body("ratings.average")
-        .if(body("ratings").exists())
-        .isFloat({ min: 0, max: 5 }).withMessage("Average rating must be between 0 and 5").bail()
-        .toFloat(),
-
-    body("ratings.count")
-        .if(body("ratings").exists())
-        .isInt({ min: 0 }).withMessage("Rating count must be a non-negative integer").bail()
         .toInt(),
 
     body("isFeatured")

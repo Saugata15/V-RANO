@@ -235,6 +235,7 @@ const orderSchema = new mongoose.Schema(
 );
 
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ "items.productId": 1 });
 orderSchema.index({ orderStatus: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, paymentExpiresAt: 1 });
 orderSchema.index(

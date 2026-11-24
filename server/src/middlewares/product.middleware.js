@@ -2,7 +2,7 @@ import { AppError } from "../utils/AppError.js";
 
 export const parseProductJsonFields = (req, res, next) => {
     try {
-        const fields = ["tags", "variants", "ratings"];
+        const fields = ["tags", "variants"];
 
         for (const field of fields) {
             if (typeof req.body[field] === "string") {

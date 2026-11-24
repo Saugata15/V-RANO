@@ -185,3 +185,8 @@ export const findExpiredPendingOrdersDAO = async (now = new Date()) => {
     .limit(50)
     .lean();
 };
+
+export const existsOrderWithProductDAO = async (productId) => {
+  const order = await Order.exists({ "items.productId": productId });
+  return Boolean(order);
+};

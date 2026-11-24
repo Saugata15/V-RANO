@@ -185,6 +185,9 @@ productSchema.pre("validate", function () {
   }
 });
 
+productSchema.index({ status: 1, isFeatured: 1, createdAt: -1 });
+productSchema.index({ "variants.color": 1, "variants.size": 1 });
+productSchema.index({ title: "text", tags: "text", description: "text" });
 productSchema.index({ status: 1, categoryId: 1, createdAt: -1 });
 productSchema.index({ status: 1, createdAt: -1 });
 productSchema.index({ status: 1, price: 1 });

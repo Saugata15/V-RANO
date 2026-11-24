@@ -9,6 +9,7 @@ import productRoutes from "../routes/product.route.js";
 import cartRoutes from "../routes/cart.route.js";
 import addressRoutes from "../routes/address.route.js";
 import orderRoutes from "../routes/order.route.js";
+import wishlistRouter from "./routes/wishlist.route.js";
 import { productReviewRouter, reviewRouter } from "../routes/review.route.js";
 import { errorHandler } from "../middlewares/error.middleware.js";
 import passport from "../config/passport.js";
@@ -44,6 +45,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/addresses", addressRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/wishlist", wishlistRouter);
 
 // error middleware
 app.use(errorHandler);

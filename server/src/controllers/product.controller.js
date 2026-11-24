@@ -1,4 +1,5 @@
 import { findCategoryByIdDAO } from "../DAO/category.dao.js";
+import { existsOrderWithProductDAO } from "../DAO/order.dao.js";
 import {
   createProductDAO,
   findActiveProductByIdDAO,
@@ -13,6 +14,8 @@ import {
   getRelatedProductsDAO,
   updateProductDAO,
 } from "../DAO/product.dao.js";
+import { deleteReviewsByProductDAO } from "../DAO/review.dao.js";
+import { deleteWishlistItemsByProductDAO } from "../DAO/wishlist.dao.js";
 import {
   deleteFile,
   uploadProductImages,
@@ -34,7 +37,6 @@ export const createProductController = async (req, res) => {
     compareAtPrice,
     tags = [],
     variants = [],
-    ratings = { average: 0, count: 0 },
     isFeatured = false,
   } = req.body;
 
@@ -84,10 +86,9 @@ export const createProductController = async (req, res) => {
       brand: brand.trim(),
       price,
       compareAtPrice: compareAtPrice ?? null,
-      tags,
+      tags: [...new Set(tags)],
       variants,
       images,
-      ratings,
       isFeatured,
     });
   } catch (error) {
@@ -187,7 +188,7 @@ export const getAllProductsForAdminController = async (req, res) => {
 // Get related products
 export const getRelatedProductsController = async (req, res) => {
   const { id } = req.params;
-  const limit = req.query.limit ?? 8;
+  const limit = Number(req.query.limit ?? 8);
 
   const product = await findActiveProductByIdDAO(id);
 
@@ -260,7 +261,6 @@ export const updateProductController = async (req, res) => {
     compareAtPrice,
     tags,
     variants,
-    ratings,
     isFeatured,
   } = req.body;
 
@@ -350,15 +350,11 @@ export const updateProductController = async (req, res) => {
   }
 
   if (tags !== undefined) {
-    updateData.tags = tags;
+    updateData.tags = [...new Set(tags)];
   }
 
   if (variants !== undefined) {
     updateData.variants = variants;
-  }
-
-  if (ratings !== undefined) {
-    updateData.ratings = ratings;
   }
 
   if (isFeatured !== undefined) {
@@ -461,11 +457,20 @@ export const deleteProductController = async (req, res) => {
     throw new AppError(404, "Product not found");
   }
 
+  const hasOrders = await existsOrderWithProductDAO(id);
+
+  if (hasOrders) {
+    throw new AppError(409, "This product has orders. Archive it instead.");
+  }
+
   const deletedProduct = await findByIdAndDeleteDAO(id);
 
   if (!deletedProduct) {
     throw new AppError(404, "Product not found");
   }
+
+  await deleteReviewsByProductDAO(id);
+  await deleteWishlistItemsByProductDAO(id);
 
   const deletionResults = await Promise.allSettled(
     deletedProduct.images.map((image) => deleteFile(image.fileId)),
@@ -485,7 +490,7 @@ export const deleteProductController = async (req, res) => {
 
 // Get featured products
 export const getFeaturedProductsController = async (req, res) => {
-  const limit = req.query.limit ?? 8;
+  const limit = Number(req.query.limit ?? 8);
 
   const products = await getFeaturedProductsDAO(limit);
 
