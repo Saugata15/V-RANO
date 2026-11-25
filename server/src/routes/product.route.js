@@ -29,6 +29,7 @@ import {
 } from "../validators/product.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
+import { productSearchLimiter, productUploadLimiter } from "../middlewares/rateLimit/api.limiter.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -70,6 +71,7 @@ router.post(
   "/",
   asyncHandler(requireAuth),
   requireAdmin,
+  productUploadLimiter,
   handleImageUpload,
   parseProductJsonFields,
   createProductValidator,
@@ -81,6 +83,7 @@ router.post(
 router.get(
   "/",
   asyncHandler(requireAuth),
+  productSearchLimiter,
   getActiveProductsValidator,
   validate,
   asyncHandler(getActiveProductsController),
@@ -136,6 +139,7 @@ router.patch(
   "/:id",
   asyncHandler(requireAuth),
   requireAdmin,
+  productUploadLimiter,
   handleImageUpload,
   parseProductJsonFields,
   updateProductValidator,

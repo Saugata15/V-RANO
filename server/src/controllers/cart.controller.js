@@ -4,6 +4,8 @@ import {
   findCartItemDAO,
   getCartDAO,
   getOrCreateCartDAO,
+  incrementCartItemDAO,
+  pushCartItemDAO,
   removeCartItemDAO,
   updateCartItemQuantityDAO,
 } from "../DAO/cart.dao.js";
@@ -129,39 +131,41 @@ export const addToCartController = async (req, res) => {
     throw new AppError(400, "Selected variant is out of stock");
   }
 
-  let cart = await getOrCreateCartDAO(userId);
+  const maxAllowed = Math.min(variant.stock, MAX_QUANTITY_PER_ITEM);
 
-  const existingItem = cart.items.find(
-    (item) =>
-      item.productId.toString() === productId.toString() &&
-      item.color === color &&
-      item.size === size,
-  );
-
-  const newQuantity = existingItem
-    ? existingItem.quantity + quantity
-    : quantity;
-
-  if (newQuantity > MAX_QUANTITY_PER_ITEM) {
-    throw new AppError(400, `Maximum ${MAX_QUANTITY_PER_ITEM} items allowed per product`);
+  if (quantity > maxAllowed) {
+    throw new AppError(400, `Only ${maxAllowed} of this item can be added`);
   }
 
-  if (newQuantity > variant.stock) {
-    throw new AppError(400, `Only ${variant.stock} items available in stock`);
-  }
+  await getOrCreateCartDAO(userId);
 
-  if (existingItem) {
-    existingItem.quantity = newQuantity;
-  } else {
-    cart.items.push({
+  // Try to bump an existing line; if there is none, try to add a new one
+  const incremented = await incrementCartItemDAO({
+    userId,
+    productId,
+    size,
+    color,
+    quantity,
+    maxAllowed,
+  });
+
+  if (incremented.matchedCount === 0) {
+    const pushed = await pushCartItemDAO({
+      userId,
       productId,
       size,
       color,
       quantity,
     });
-  }
 
-  await cart.save();
+    // The line exists, but adding more would pass the limit
+    if (pushed.matchedCount === 0) {
+      throw new AppError(
+        400,
+        `You can have at most ${maxAllowed} of this item in your cart`,
+      );
+    }
+  }
 
   const updatedCart = await getCartDAO(userId);
 

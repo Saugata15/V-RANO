@@ -22,6 +22,7 @@ import {
 } from "../validators/category.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
 import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
+import { categoryUploadLimiter } from "../middlewares/rateLimit/api.limiter.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -63,6 +64,7 @@ router.post(
   "/",
   asyncHandler(requireAuth),
   requireAdmin,
+  categoryUploadLimiter,
   parseCategoryImageUpload,
   createCategoryValidator,
   validate,
@@ -102,6 +104,7 @@ router.patch(
   "/:id",
   asyncHandler(requireAuth),
   requireAdmin,
+  categoryUploadLimiter,
   parseCategoryImageUpload,
   updateCategoryValidator,
   validate,

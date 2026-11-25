@@ -15,6 +15,7 @@ import { errorHandler } from "../middlewares/error.middleware.js";
 import passport from "../config/passport.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { razorpayWebhookController } from "../controllers/payment.controller.js";
+import { globalApiLimiter } from "../middlewares/rateLimit/api.limiter.js";
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use(
         allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
     }),
 );
+app.use("/api", globalApiLimiter);
 
 app.post(
     "/api/payments/razorpay/webhook",

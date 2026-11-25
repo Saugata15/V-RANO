@@ -22,6 +22,7 @@ import {
   verifyOrderPaymentValidator,
 } from "../validators/order.validator.js";
 import { validate } from "../middlewares/validate.middleware.js";
+import { checkoutLimiter, paymentVerificationLimiter } from "../middlewares/rateLimit/payment.limiter.js";
 
 const router = Router();
 
@@ -29,6 +30,7 @@ const router = Router();
 router.post(
   "/",
   asyncHandler(requireAuth),
+  checkoutLimiter,
   placeOrderValidator,
   validate,
   asyncHandler(placeOrderController),
@@ -95,6 +97,7 @@ router.get(
 router.post(
   "/:id/verify-payment",
   asyncHandler(requireAuth),
+  paymentVerificationLimiter,
   verifyOrderPaymentValidator,
   validate,
   asyncHandler(verifyOrderPaymentController),

@@ -1,3 +1,4 @@
+import { removeProductFromAllCartsDAO } from "../DAO/cart.dao.js";
 import { findCategoryByIdDAO } from "../DAO/category.dao.js";
 import { existsOrderWithProductDAO } from "../DAO/order.dao.js";
 import {
@@ -471,6 +472,7 @@ export const deleteProductController = async (req, res) => {
 
   await deleteReviewsByProductDAO(id);
   await deleteWishlistItemsByProductDAO(id);
+  await removeProductFromAllCartsDAO(id);
 
   const deletionResults = await Promise.allSettled(
     deletedProduct.images.map((image) => deleteFile(image.fileId)),

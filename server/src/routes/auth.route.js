@@ -27,6 +27,17 @@ import { AppError } from "../utils/AppError.js";
 import passport from "../config/passport.js";
 import { SUPPORTED_IMAGE_TYPES } from "../constants/product.constants.js";
 import config from "../config/config.js";
+import {
+  changePasswordLimiter,
+  googleAuthLimiter,
+  googleCallbackLimiter,
+  googleLinkCallbackLimiter,
+  linkGoogleLimiter,
+  loginLimiter,
+  refreshLimiter,
+  registerLimiter,
+} from "../middlewares/rateLimit/auth.limiter.js";
+import { avatarUploadLimiter } from "../middlewares/rateLimit/api.limiter.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -37,7 +48,10 @@ const upload = multer({
   fileFilter: (_req, file, callback) => {
     if (!SUPPORTED_IMAGE_TYPES.includes(file.mimetype)) {
       return callback(
-        new AppError(400, "Images must be a JPEG, PNG, JPG, AVIF or WebP image"),
+        new AppError(
+          400,
+          "Images must be a JPEG, PNG, JPG, AVIF or WebP image",
+        ),
       );
     }
     callback(null, true);
@@ -63,16 +77,23 @@ const router = Router();
 // register via email and password
 router.post(
   "/register",
+  registerLimiter,
   registerValidator,
   validate,
   asyncHandler(registerController),
 );
 
 // login via email and password
-router.post("/login", loginValidator, validate, asyncHandler(loginController));
+router.post(
+  "/login",
+  loginLimiter,
+  loginValidator,
+  validate,
+  asyncHandler(loginController),
+);
 
 // refresh token
-router.post("/refresh", asyncHandler(refreshController));
+router.post("/refresh", refreshLimiter, asyncHandler(refreshController));
 
 // logout route
 router.post("/logout", asyncHandler(logoutController));
@@ -84,6 +105,7 @@ router.get("/me", asyncHandler(requireAuth), asyncHandler(meController));
 router.post(
   "/change-password",
   asyncHandler(requireAuth),
+  changePasswordLimiter,
   changePasswordValidator,
   validate,
   asyncHandler(changePasswordController),
@@ -93,6 +115,7 @@ router.post(
 router.patch(
   "/avatar",
   asyncHandler(requireAuth),
+  avatarUploadLimiter,
   parseAvatarUpload,
   asyncHandler(updateAvatarController),
 );
@@ -100,6 +123,7 @@ router.patch(
 // Google Authentication
 router.get(
   "/google",
+  googleAuthLimiter,
   passport.authenticate("google", {
     scope: ["profile", "email"],
     prompt: "select_account",
@@ -109,6 +133,7 @@ router.get(
 
 router.get(
   "/google/callback",
+  googleCallbackLimiter,
   passport.authenticate("google", {
     session: false,
     failureRedirect: "/",
@@ -120,6 +145,7 @@ router.get(
 router.get(
   "/google/link",
   asyncHandler(requireAuth),
+  linkGoogleLimiter,
   asyncHandler(startGoogleLinkController),
 );
 
@@ -127,6 +153,7 @@ router.get(
 router.get(
   "/google/link/callback",
   asyncHandler(validateGoogleLinkState),
+  googleLinkCallbackLimiter,
   passport.authenticate("google", {
     session: false,
     failureRedirect: `${config.CLIENT_URL}/account/security?googleLink=failed`,

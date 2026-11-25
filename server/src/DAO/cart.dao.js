@@ -1,5 +1,47 @@
 import Cart from "../models/cart.model.js";
 
+// Increment an existing line, only if the result stays within the limit
+export const incrementCartItemDAO = async ({
+  userId,
+  productId,
+  size,
+  color,
+  quantity,
+  maxAllowed,
+}) => {
+  return await Cart.updateOne(
+    {
+      user: userId,
+      items: {
+        $elemMatch: {
+          productId,
+          size,
+          color,
+          quantity: { $lte: maxAllowed - quantity },
+        },
+      },
+    },
+    { $inc: { "items.$.quantity": quantity } },
+  );
+};
+
+// Add a new line, only if that product + size + color isn't there yet
+export const pushCartItemDAO = async ({
+  userId,
+  productId,
+  size,
+  color,
+  quantity,
+}) => {
+  return await Cart.updateOne(
+    {
+      user: userId,
+      items: { $not: { $elemMatch: { productId, size, color } } },
+    },
+    { $push: { items: { productId, size, color, quantity } } },
+  );
+};
+
 export const getCartDAO = async (userId) => {
   return await Cart.findOne({ user: userId })
     .populate({
@@ -85,4 +127,11 @@ export const updateCartItemQuantityDAO = async ({
       populate: { path: "categoryId", select: "isActive" },
     })
     .lean();
+};
+
+export const removeProductFromAllCartsDAO = async (productId) => {
+  return await Cart.updateMany(
+    { "items.productId": productId },
+    { $pull: { items: { productId } } },
+  );
 };

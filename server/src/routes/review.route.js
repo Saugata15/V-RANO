@@ -16,6 +16,7 @@ import {
   reviewIdValidator,
   updateReviewValidator,
 } from "../validators/review.validator.js";
+import { reviewLimiter } from "../middlewares/rateLimit/api.limiter.js";
 
 export const productReviewRouter = Router({ mergeParams: true });
 
@@ -23,6 +24,7 @@ export const productReviewRouter = Router({ mergeParams: true });
 productReviewRouter.post(
   "/",
   asyncHandler(requireAuth),
+  reviewLimiter,
   createReviewValidator,
   validate,
   asyncHandler(createReviewController),
